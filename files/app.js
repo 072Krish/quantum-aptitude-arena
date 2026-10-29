@@ -1,6 +1,6 @@
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const KEY = 'quantum_aptitude_v2';
-const API_BASE = 'http://localhost:5000';
+const API_BASE = 'https://quantum-aptitude-arena.onrender.com';
 const sampleQuestions = [
     { question: 'A number is increased by 20% and then decreased by 20%. What is the net change?', optionA: 'No change', optionB: '4% decrease', optionC: '4% increase', optionD: '2% decrease', answer: 'B', explanation: 'Let the number be 100. After a 20% increase it becomes 120. A 20% decrease on 120 gives 96, which is 4% below 100.', category: 'Quantitative Aptitude' },
     { question: 'Find the next number in the series: 3, 8, 15, 24, 35, ?', optionA: '46', optionB: '47', optionC: '48', optionD: '49', answer: 'C', explanation: 'The differences are 5, 7, 9, 11. The next difference is 13, so 35 + 13 = 48.', category: 'Logical Reasoning' },
