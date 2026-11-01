@@ -655,10 +655,6 @@ function resumeQuiz() {
         return toast('The saved quiz is no longer available.');
     }
 
-    if (saved.expiresAt && Date.now() >= new Date(saved.expiresAt).getTime()) {
-        return toast('This quiz has expired.');
-    }
-
     useQuiz(q);
 
     serverAttemptId = saved.serverAttemptId || null;
@@ -672,6 +668,10 @@ function resumeQuiz() {
         serverAttemptId,
         meta: saved.meta
     };
+
+    if (saved.expiresAt && Date.now() >= new Date(saved.expiresAt).getTime()) {
+    return submitQuiz(true);
+}
 
     $('#quizOverlay').classList.remove('hidden');
     enterFullscreen();

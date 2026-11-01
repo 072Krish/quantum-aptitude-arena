@@ -995,21 +995,6 @@ app.post("/api/attempts/:attemptId/submit", verifyStudentToken, async (req, res)
       });
     }
 
-    // Enforce the server-side deadline
-    if (!attempt.expires_at || new Date(attempt.expires_at) <= new Date()) {
-      await client.query(
-        `UPDATE quiz_attempts
-         SET status = 'submitted', submitted_at = NOW()
-         WHERE id = $1`,
-        [attemptId]
-      );
-      await client.query("COMMIT");
-
-      return res.status(410).json({
-        status: "error",
-        message: "Quiz time has expired"
-      });
-    }
 
     // Calculate score using saved answers and database correct answers
     const scoreResult = await client.query(
