@@ -289,3 +289,90 @@ body:not(.light-theme) input[type="datetime-local"]::-webkit-calendar-picker-ind
     line-height: 1;
 }
 
+
+/* =========================================
+   QUICK ACTIONS — MOBILE UI REDESIGN
+========================================= */
+
+@media (max-width: 760px) {
+
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 11px;
+        width: 100%;
+        margin-top: 20px;
+    }
+
+    /* First action gets full width */
+    .quick-actions .btn:first-child {
+        grid-column: 1 / -1;
+        min-height: 57px;
+        flex-direction: row;
+        justify-content: center;
+    }
+
+    /* Other two actions become compact tiles */
+    .quick-actions .btn:nth-child(n+2) {
+        min-width: 0;
+        min-height: 82px;
+        padding: 12px 7px;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.4;
+    }
+
+    /* Common button styling */
+    .quick-actions .btn {
+        width: 100%;
+        margin: 0;
+        border-radius: 15px;
+        font-size: 12px;
+        font-weight: 800;
+        border: 1px solid var(--line);
+        background: var(--panel2);
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.035);
+        transition: all .22s ease;
+    }
+
+    .quick-actions .btn:active {
+        transform: scale(.97);
+    }
+
+    .quick-actions .btn:hover {
+        border-color: var(--purple);
+        box-shadow: 0 5px 16px rgba(110, 85, 220, .12);
+    }
+
+    /* Better spacing inside the Quick Actions panel */
+    .analytics-grid .panel:has(.quick-actions) {
+        padding: 19px;
+    }
+
+    .quick-actions .btn:focus-visible {
+        outline: 2px solid var(--purple);
+        outline-offset: 3px;
+    }
+}
+
+/* Extra-small phones */
+@media (max-width: 360px) {
+    .quick-actions {
+        gap: 8px;
+    }
+
+    .quick-actions .btn {
+        font-size: 11px;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .quick-actions .btn:nth-child(n+2) {
+        min-height: 76px;
+    }
+}
+
+
