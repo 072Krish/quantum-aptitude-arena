@@ -1,6 +1,6 @@
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const KEY = 'quantum_aptitude_v2';
-const API_BASE = 'https://quantum-aptitude-arena.onrender.com';
+const API_BASE = 'http://localhost:5000';
 const sampleQuestions = [
     { question: 'A number is increased by 20% and then decreased by 20%. What is the net change?', optionA: 'No change', optionB: '4% decrease', optionC: '4% increase', optionD: '2% decrease', answer: 'B', explanation: 'Let the number be 100. After a 20% increase it becomes 120. A 20% decrease on 120 gives 96, which is 4% below 100.', category: 'Quantitative Aptitude' },
     { question: 'Find the next number in the series: 3, 8, 15, 24, 35, ?', optionA: '46', optionB: '47', optionC: '48', optionD: '49', answer: 'C', explanation: 'The differences are 5, 7, 9, 11. The next difference is 13, so 35 + 13 = 48.', category: 'Logical Reasoning' },
@@ -170,13 +170,8 @@ function mapApiQuiz(q) {
 
         points: Number(q.points || 1),
 
-        seconds: Math.max(
-            1,
-            Math.round(
-                Number(q.duration_minutes || 1) * 60 /
-                Math.max(1, (q.questions || []).length)
-            )
-        ),
+        // Use the exact seconds saved in PostgreSQL
+        seconds: Math.max(1, Number(q.seconds_per_question || 45)),
 
         shuffleQuestions: !!q.shuffle_questions,
         shuffleOptions: !!q.shuffle_options,
@@ -207,6 +202,7 @@ function mapApiQuiz(q) {
         }))
     };
 }
+
 function mapApiResult(r) { return { ...r, id: String(r.id), userId: String(r.userId), quizId: String(r.quizId), score: Number(r.score || 0), maxScore: Number(r.maxScore || 0), correct: Number(r.correct || 0), totalTime: Number(r.totalTime || 0), answers: r.answers || [], questionSnapshot: r.questionSnapshot || [] }; }
 async function hydrateFromServer() {
     try {
@@ -293,11 +289,104 @@ function settingsCard(q) { const sh = [q.shuffleQuestions && 'Questions', q.shuf
 function quizSettingsPage() { const L = quizzes(); return `${head('Quiz settings', 'One card per quiz. Edit opens a form with all its settings.', '<button class="btn btn-primary" id="openCreate">＋ Create quiz</button>')}${L.length ? `<div class="quiz-list">${L.map(settingsCard).join('')}</div>` : `<div class="empty-state"><strong>No quizzes yet.</strong>Create one to open a challenge. Past results remain on the leaderboard.</div>`}` }
 function resCard(r) { const q = quizzes().find(x => x.id === r.quizId), rr = myRank(r.quizId), open = rankOpen(r.quizId), n = r.answers.length, acc = Math.round(r.score / Math.max(1, r.maxScore) * 100), on = resView === r.id, rk = !open ? `<b>🔒</b><small>RANK · AFTER QUIZ CLOSES</small>` : rankShown[r.quizId] && rr ? `<b>#${rr.rank} <span class="of">of ${rr.total}</span></b><small>EXPECTED RANK</small>` : `<button class="text-link" data-rank="${r.quizId}">Show</button><small>EXPECTED RANK</small>`; return `<article class="res-card ${on ? 'active' : ''}"><div>${q ? `<span class="pill pill-purple">${esc(q.category)}</span>` : ''}<h3>${esc(r.quizTitle)}</h3><span class="when">Submitted ${fmtDT(r.finishedAt)}</span></div><div class="res-score"><b>${r.score}</b><span>/ ${r.maxScore} pts</span><em>${acc}%</em></div><div class="bar-track"><div class="bar-fill" style="width:${acc}%"></div></div><div class="res-metrics"><div>${rk}</div><div><b>${fmtTime(r.totalTime)}</b><small>TIME TAKEN</small></div><div><b>${r.correct}/${n}</b><small>CORRECT</small></div><div><b>${Math.round(r.totalTime / Math.max(1, n))}s</b><small>AVG / QUESTION</small></div></div><button class="btn ${on ? 'btn-primary' : 'btn-secondary'}" data-res="${r.id}">${on ? 'Hide answers' : 'View answers'}</button></article>` }
 function myResultsPage() {
-    const my = db.results.filter(r => r.userId === currentUser.id).sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt)), done = new Set(my.map(r => r.quizId)), todo = quizzes().filter(q => !done.has(q.id)), pc = r => Math.round(r.score / Math.max(1, r.maxScore) * 100), sel = my.find(r => r.id === resView);
-    const pending = todo.length ? `<section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>Not attempted</h3><p>Quizzes without a result yet</p></div></div><div class="mini-list">${todo.map(q => { const st = quizState(q); return `<div class="mini-row"><div><strong>${esc(q.title)}</strong><small class="subtext">${st === 'closed' ? 'Closed · you missed this one' : st === 'scheduled' ? 'Opens ' + fmtDT(q.startAt) : 'Open now'}</small></div>${st === 'open' ? '<button class="btn btn-primary" data-go="overview">Start</button>' : `<span class="badge muted-badge">${st === 'closed' ? 'MISSED' : 'SOON'}</span>`}</div>` }).join('')}</div></section>` : '';
-    if (!my.length) return `${head('My results', 'Your scorecard, time and rank for every quiz.')}<div class="empty-state"><strong>No completed attempts yet.</strong>Head back to the dashboard and start a quiz.</div>${pending}`;
-    const best = my.reduce((a, b) => pc(b) > pc(a) ? b : a), wrong = sel ? sel.answers.filter((a, i) => a.selected && a.selected !== sel.questionSnapshot[i].answer).length : 0, skip = sel ? sel.answers.filter(a => !a.selected).length : 0;
-    return `${head('My results', 'Every quiz you have taken, with score, time and rank.')}<div class="stats-grid">${stat('QUIZZES TAKEN', my.length, `of ${quizzes().length} available`, '∑')}${stat('AVG. ACCURACY', Math.round(my.reduce((s, r) => s + pc(r), 0) / my.length) + '%', 'Across all attempts', '◎')}${stat('BEST SCORE', pc(best) + '%', esc(best.quizTitle), '✦')}${stat('TOTAL TIME', fmtTime(my.reduce((s, r) => s + r.totalTime, 0)), 'Across all attempts', '◷')}</div><div class="res-grid">${my.map(resCard).join('')}</div>${sel ? `<section class="panel" id="reviewPanel"><div class="panel-head"><div><h3>Answer review · ${esc(sel.quizTitle)}</h3><p>Correct answers and explanations for this attempt</p></div></div><div class="review-summary"><span class="badge">✓ ${sel.correct} correct</span><span class="badge muted-badge">✕ ${wrong} wrong</span><span class="badge muted-badge">– ${skip} skipped</span></div><div class="answer-review">${sel.answers.map((a, i) => { let q = sel.questionSnapshot[i], correct = a.selected === q.answer; return `<div class="review-item"><h4>${i + 1}. ${esc(q.question)}</h4><p class="${correct ? 'correct-text' : 'wrong-text'}">Your answer: ${a.selected ? esc(q['option' + a.selected]) : 'Not answered'} ${correct ? '✓' : '✕'}</p><p class="correct-text">Correct answer: ${esc(q['option' + q.answer])}</p><p>✳ ${esc(q.explanation || 'Review the correct option above.')}</p></div>` }).join('')}</div></section>` : ''}${pending}`
+    const my = db.results
+        .filter(r => String(r.userId) === String(currentUser.id))
+        .sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt));
+
+    const done = new Set(my.map(r => String(r.quizId)));
+    const todo = quizzes().filter(q => !done.has(String(q.id)));
+    const pc = r => Math.round(Number(r.score || 0) / Math.max(1, Number(r.maxScore || 0)) * 100);
+    const sel = my.find(r => String(r.id) === String(resView));
+
+    const pending = todo.length
+        ? `<section class="panel" style="margin-top:20px">
+            <div class="panel-head"><div><h3>Not attempted</h3><p>Quizzes without a result yet</p></div></div>
+            <div class="mini-list">
+                ${todo.map(q => {
+                    const st = quizState(q);
+                    return `<div class="mini-row">
+                        <div>
+                            <strong>${esc(q.title)}</strong>
+                            <small class="subtext">${st === 'closed' ? 'Closed · you missed this one' : st === 'scheduled' ? 'Opens ' + fmtDT(q.startAt) : 'Open now'}</small>
+                        </div>
+                        ${st === 'open' ? '<button class="btn btn-primary" data-go="overview">Start</button>' : `<span class="badge muted-badge">${st === 'closed' ? 'MISSED' : 'SOON'}</span>`}
+                    </div>`;
+                }).join('')}
+            </div>
+        </section>`
+        : '';
+
+    if (!my.length) {
+        return `${head('My results', 'Your scorecard, time and rank for every quiz.')}
+            <div class="empty-state">
+                <strong>No completed attempts yet.</strong>
+                Head back to the dashboard and start a quiz.
+            </div>${pending}`;
+    }
+
+    const answers = sel?.answers || [];
+    const snapshots = sel?.questionSnapshot || [];
+
+    const wrong = sel
+        ? snapshots.filter((q, i) => {
+            const a = answers[i] || {};
+            return !!a.selected && a.selected !== q.answer;
+        }).length
+        : 0;
+
+    const skip = sel
+        ? snapshots.filter((q, i) => !(answers[i] || {}).selected).length
+        : 0;
+
+    const best = my.reduce((a, b) => pc(b) > pc(a) ? b : a);
+
+    return `${head('My results', 'Every quiz you have taken, with score, time and rank.')}
+        <div class="stats-grid">
+            ${stat('QUIZZES TAKEN', my.length, `of ${quizzes().length} available`, '∑')}
+            ${stat('AVG. ACCURACY', Math.round(my.reduce((s, r) => s + pc(r), 0) / my.length) + '%', 'Across all attempts', '◎')}
+            ${stat('BEST SCORE', pc(best) + '%', esc(best.quizTitle), '✦')}
+            ${stat('TOTAL TIME', fmtTime(my.reduce((s, r) => s + r.totalTime, 0)), 'Across all attempts', '◷')}
+        </div>
+
+        <div class="res-grid">${my.map(resCard).join('')}</div>
+
+        ${sel ? `
+            <section class="panel" id="reviewPanel">
+                <div class="panel-head">
+                    <div>
+                        <h3>Answer review · ${esc(sel.quizTitle)}</h3>
+                        <p>Correct answers and explanations for this attempt</p>
+                    </div>
+                </div>
+
+                <div class="review-summary">
+                    <span class="badge">✓ ${sel.correct} correct</span>
+                    <span class="badge muted-badge">✕ ${wrong} wrong</span>
+                    <span class="badge muted-badge">– ${skip} skipped</span>
+                </div>
+
+                <div class="answer-review">
+                    ${snapshots.map((q, i) => {
+                        const a = answers[i] || {};
+                        const correct = !!a.selected && a.selected === q.answer;
+
+                        return `<div class="review-item">
+                            <h4>${i + 1}. ${esc(q.question)}</h4>
+                            <p class="${correct ? 'correct-text' : 'wrong-text'}">
+                                Your answer: ${a.selected ? esc(q['option' + a.selected]) : 'Not answered'}
+                                ${correct ? '✓' : '✕'}
+                            </p>
+                            <p class="correct-text">
+                                Correct answer: ${esc(q['option' + q.answer])}
+                            </p>
+                            <p>✳ ${esc(q.explanation || 'Review the correct option above.')}</p>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </section>
+        ` : ''}
+
+        ${pending}`;
 }
 function bindPage() { $$('[data-go]').forEach(b => b.onclick = () => { currentPage = b.dataset.go; renderNav(); renderPage() }); let oc = $('#openCreate'); if (oc) oc.onclick = () => openCreateModal('new'); $$('[data-edit]').forEach(b => b.onclick = () => openCreateModal('edit', b.dataset.edit)); $$('[data-del]').forEach(b => b.onclick = () => deleteQuiz(b.dataset.del)); $$('[data-pwview]').forEach(b => b.onclick = () => { const t = $(`[data-pw="${b.dataset.pwview}"]`), q = quizzes().find(x => x.id === b.dataset.pwview), s = t.textContent === '••••••'; t.textContent = s ? q.password : '••••••'; b.textContent = s ? 'Hide' : 'View' }); if ($('#lbQuiz')) { $('#lbQuiz').onchange = $('#lbSort').onchange = lbUpdate; $('#lbSearch').oninput = lbUpdate; lbUpdate() } $$('[data-rank]').forEach(b => b.onclick = () => { if (!rankOpen(b.dataset.rank)) return toast('Rank unlocks once the quiz closes.'); rankShown[b.dataset.rank] = true; renderPage() }); $$('[data-start]').forEach(b => b.onclick = () => startQuiz(b.dataset.start)); $$('[data-res]').forEach(b => b.onclick = () => { resView = (currentPage === 'myresult' && resView === b.dataset.res) ? null : b.dataset.res; currentPage = 'myresult'; renderNav(); renderPage(); if (resView) { const p = document.getElementById('reviewPanel'); if (p && p.scrollIntoView) p.scrollIntoView({ behavior: 'smooth', block: 'start' }) } }); let exp = $('#exportUsers'); if (exp) exp.onclick = exportUsers; let search = $('#userSearch'); if (search) search.oninput = () => { let q = search.value.toLowerCase(); $('#usersTable').innerHTML = usersTable(db.users.filter(u => u.role === 'student' && (u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)))) } }
 let modalMode = 'edit', editId = null;
@@ -337,14 +426,21 @@ $('#createQuizForm').onsubmit = async e => {
     const title = $('#quizTitleInput').value.trim();
     if (!title) return toast('Enter a quiz title.');
 
-    const payload = {
-        title,
-        description: '',
-        category: $('#quizCategoryInput').value || 'General',
-        duration_minutes: Math.max(
-            1,
-            Math.ceil((+$('#secondsInput').value * Math.max(1, bank.length)) / 60)
-        ),
+const payload = {
+    title,
+    description: '',
+    category: $('#quizCategoryInput').value || 'General',
+
+    seconds_per_question: Math.max(1, Math.floor(Number($('#secondsInput').value) || 45)),
+
+    duration_minutes: Math.max(
+        1,
+        Math.ceil(
+            (+$('#secondsInput').value *
+            Math.max(1, Math.min(+$('#questionCountInput').value || 1, bank.length))) / 60
+        )
+    ),
+
         points: +$('#pointsInput').value || 1,
         shuffle_questions: $('#shuffleQuestions').checked,
         shuffle_options: $('#shuffleOptions').checked,
@@ -373,7 +469,10 @@ option_d: q.option_d ?? q.optionD ?? q.options?.[3] ?? q.d ?? '',
         }))
     };
 
-    try {
+    console.log("Timer input:", $('#secondsInput').value);
+console.log("Timer sent to API:", payload.seconds_per_question);
+
+try {
         const response = await fetch(
             cur
                 ? `${API_BASE}/api/quizzes/${cur.id}`
@@ -434,10 +533,9 @@ option_d: q.option_d ?? q.optionD ?? q.options?.[3] ?? q.d ?? '',
 function exportUsers() { let rows = [['Name', 'Email', 'Role', 'Registered At', 'Quiz Status', 'Best Score', 'Average Time Seconds']]; db.users.filter(u => u.role === 'student').forEach(u => { let rs = db.results.filter(r => r.userId === u.id), best = rs.reduce((a, r) => !a || r.score > a.score ? r : a, null); rows.push([u.name, u.email, u.role, u.registeredAt, rs.length ? 'Completed' : 'Not attempted', best ? best.score : '', averageTimeForUser(u.id) ?? '']) }); let csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n'), url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), a = document.createElement('a'); a.href = url; a.download = 'quantum_registered_users.csv'; a.click(); URL.revokeObjectURL(url); toast('Registered users CSV exported.') }
 function shuffle(arr) { let a = [...arr]; for (let i = a.length - 1; i > 0; i--) { let j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]] } return a }
 function stopQuestionTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null } }
-function renderQuestion() { stopQuestionTimer(); let q = quizRun.questions[quizRun.index]; console.log("QUESTION OPTIONS:", { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD }); const deadline = new Date(quizRun.expiresAt).getTime(); const updateTimer = () => { const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000)); quizRun.remaining = remaining; $('#timerValue').textContent = remaining; $('#timerRing').style.borderColor = remaining <= 10 ? 'var(--pink)' : 'var(--lime)'; if (remaining <= 0) { stopQuestionTimer(); submitQuiz(true); } }; quizRun.questionStarted = Date.now(); $('#quizTopCount').textContent = `QUESTION ${String(quizRun.index + 1).padStart(2, '0')} / ${String(quizRun.questions.length).padStart(2, '0')}`; $('#questionIndex').innerHTML = `${String(quizRun.index + 1).padStart(2, '0')} <span>/ ${quizRun.questions.length}</span>`; $('#questionCategory').textContent = q.category || quizConfig.category.toUpperCase(); $('#questionText').textContent = q.question; $('#timerRing').style.borderColor = 'var(--lime)'; $('#quizProgressFill').style.width = `${quizRun.index / quizRun.questions.length * 100}%`; $('#optionsGrid').innerHTML = q.optionOrder.map((letter, i) => `<button class="option-card ${quizRun.answers[quizRun.index] === letter ? 'selected' : ''}" data-answer="${letter}"><span class="option-letter">${String.fromCharCode(65 + i)}</span><span class="option-text">${esc(q['option' + letter])}</span></button>`).join(''); $$('[data-answer]').forEach(b => { b.onclick = () => { quizRun.answers[quizRun.index] = b.dataset.answer; persistRun(); saveAnswerToServer(q.id, b.dataset.answer); $$('[data-answer]').forEach(x => x.classList.toggle('selected', x === b)); renderDots(); }; }); $('#prevQuestion').disabled = quizRun.index === 0; $('#prevQuestion').style.opacity = quizRun.index === 0 ? '.45' : '1'; $('#nextQuestion').classList.toggle('hidden', quizRun.index === quizRun.questions.length - 1); $('#submitQuiz').classList.toggle('hidden', quizRun.index !== quizRun.questions.length - 1); $('#clearAnswer').onclick = () => { const q = quizRun.questions[quizRun.index]; delete quizRun.answers[quizRun.index]; persistRun(); $$('[data-answer]').forEach(x => x.classList.remove('selected')); renderDots(); clearAnswerOnServer(q.id); }; $('#prevQuestion').onclick = () => moveQuestion(-1); $('#nextQuestion').onclick = () => moveQuestion(1); $('#submitQuiz').onclick = () => submitQuiz(); renderDots(); updateTimer(); timerInterval = setInterval(updateTimer, 1000); }
+function renderQuestion() { stopQuestionTimer(); let q = quizRun.questions[quizRun.index]; console.log("QUESTION OPTIONS:", { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD }); const deadline = quizRun.questionDeadline || (quizRun.questionDeadline = Date.now() + (Number(quizConfig.seconds) * 1000)); const updateTimer = () => { const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000)); quizRun.remaining = remaining; $('#timerValue').textContent = remaining; $('#timerRing').style.borderColor = remaining <= 10 ? 'var(--pink)' : 'var(--lime)'; if (remaining <= 0) { stopQuestionTimer(); quizRun.expiredQuestions = quizRun.expiredQuestions || []; if (!quizRun.expiredQuestions.includes(quizRun.index)) quizRun.expiredQuestions.push(quizRun.index); if (quizRun.index < quizRun.questions.length - 1) { moveQuestion(1); } else { submitQuiz(true); } } }; quizRun.questionStarted = Date.now(); $('#quizTopCount').textContent = `QUESTION ${String(quizRun.index + 1).padStart(2, '0')} / ${String(quizRun.questions.length).padStart(2, '0')}`; $('#questionIndex').innerHTML = `${String(quizRun.index + 1).padStart(2, '0')} <span>/ ${quizRun.questions.length}</span>`; $('#questionCategory').textContent = q.category || quizConfig.category.toUpperCase(); $('#questionText').textContent = q.question; $('#timerRing').style.borderColor = 'var(--lime)'; $('#quizProgressFill').style.width = `${quizRun.index / quizRun.questions.length * 100}%`; $('#optionsGrid').innerHTML = q.optionOrder.map((letter, i) => `<button class="option-card ${quizRun.answers[quizRun.index] === letter ? 'selected' : ''}" data-answer="${letter}"><span class="option-letter">${String.fromCharCode(65 + i)}</span><span class="option-text">${esc(q['option' + letter])}</span></button>`).join(''); $$('[data-answer]').forEach(b => { b.onclick = () => { quizRun.answers[quizRun.index] = b.dataset.answer; persistRun(); saveAnswerToServer(q.id, b.dataset.answer); $$('[data-answer]').forEach(x => x.classList.toggle('selected', x === b)); renderDots(); }; }); $('#prevQuestion').disabled = quizRun.index === 0 || (quizRun.expiredQuestions || []).includes(quizRun.index - 1); $('#prevQuestion').style.opacity = $('#prevQuestion').disabled ? '.45' : '1'; $('#nextQuestion').classList.toggle('hidden', quizRun.index === quizRun.questions.length - 1); $('#submitQuiz').classList.toggle('hidden', quizRun.index !== quizRun.questions.length - 1); $('#clearAnswer').onclick = () => { const q = quizRun.questions[quizRun.index]; delete quizRun.answers[quizRun.index]; persistRun(); $$('[data-answer]').forEach(x => x.classList.remove('selected')); renderDots(); clearAnswerOnServer(q.id); }; $('#prevQuestion').onclick = () => moveQuestion(-1); $('#nextQuestion').onclick = () => moveQuestion(1); $('#submitQuiz').onclick = () => submitQuiz(); renderDots(); updateTimer(); timerInterval = setInterval(updateTimer, 1000); }
 function renderDots() { $('#questionDots').innerHTML = quizRun.questions.map((q, i) => `<button class="question-dot ${i === quizRun.index ? 'current' : ''} ${quizRun.answers[i] ? 'answered' : ''}" title="Question ${i + 1}" data-dot="${i}"></button>`).join(''); $$('[data-dot]').forEach(b => b.onclick = () => { quizRun.index = +b.dataset.dot; renderQuestion() }) }
-function moveQuestion(d) { quizRun.index = Math.max(0, Math.min(quizRun.questions.length - 1, quizRun.index + d)); renderQuestion() }
-
+function moveQuestion(d) { const targetIndex = quizRun.index + d; if (targetIndex < 0 || targetIndex >= quizRun.questions.length || (d < 0 && (quizRun.expiredQuestions || []).includes(targetIndex))) return; quizRun.index = targetIndex; quizRun.questionDeadline = Date.now() + (Number(quizConfig.seconds) * 1000); persistRun(); renderQuestion(); }
 let rankShown = {}, resView = null; db.inProgress = db.inProgress || {};
 function qCount(q = quizConfig) { const n = q.questions.length; return Math.max(1, Math.min(+q.questionCount || n, n)) }
 function updateBankHint(n) { $('#bankHint').textContent = `Question bank has ${n}. Each student gets this many, picked at random.` }
@@ -630,6 +728,9 @@ function persistRun() {
             answers: quizRun.answers,
             startedAt: quizRun.startedAt,
             expiresAt: quizRun.expiresAt,
+            questionDeadline: quizRun.questionDeadline,
+            questionStarted: quizRun.questionStarted,
+            remaining: quizRun.remaining,
             serverAttemptId: serverAttemptId,
             meta: quizRun.meta
         };
@@ -657,6 +758,13 @@ function resumeQuiz() {
 
     useQuiz(q);
 
+    const pool = q.shuffleQuestions
+    ? shuffle(q.questions)
+    : [...q.questions];
+
+const selectedQuestions = pool.slice(0, qCount(q));
+
+
     serverAttemptId = saved.serverAttemptId || null;
 
     quizRun = {
@@ -665,13 +773,16 @@ function resumeQuiz() {
         index: Math.max(0, saved.questions.findIndex((q, i) => !saved.answers?.[i])),
         startedAt: saved.startedAt,
         expiresAt: saved.expiresAt,
+        questionDeadline: saved.questionDeadline,
+        questionStarted: saved.questionStarted,
+        remaining: saved.remaining,
         serverAttemptId,
         meta: saved.meta
     };
 
     if (saved.expiresAt && Date.now() >= new Date(saved.expiresAt).getTime()) {
-    return submitQuiz(true);
-}
+        return submitQuiz(true);
+    }
 
     $('#quizOverlay').classList.remove('hidden');
     enterFullscreen();
@@ -687,9 +798,16 @@ async function startQuiz(id) {
 
     useQuiz(q);
 
+    // Select questions for this attempt
+    const pool = q.shuffleQuestions
+        ? shuffle([...q.questions])
+        : [...q.questions];
+
+    const selectedQuestions = pool.slice(0, qCount(q));
+
     if (myResult(q)) {
-    return toast('You have already used your one attempt.');
-}
+        return toast('You have already used your one attempt.');
+    }
 
     const st = quizState(q);
 
@@ -715,7 +833,10 @@ async function startQuiz(id) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ quiz_id: q.id })
+body: JSON.stringify({
+    quiz_id: q.id,
+    question_ids: selectedQuestions.map(question => question.id)
+})
         });
 
         const data = await response.json();
@@ -726,17 +847,27 @@ async function startQuiz(id) {
 
         serverAttemptId = data.attempt.id;
 
-        const pool = q.shuffleQuestions
-            ? shuffle(q.questions)
-            : [...q.questions];
+const orderedIds = (data.question_ids || selectedQuestions.map(x => x.id))
+    .map(String);
 
-        const qs = pool.slice(0, qCount(q)).map(x => ({
-            ...x,
-            optionOrder: q.shuffleOptions
-                ? shuffle(['A', 'B', 'C', 'D'])
-                : ['A', 'B', 'C', 'D']
-        }));
+const questionMap = new Map(
+    q.questions.map(question => [String(question.id), question])
+);
 
+const questionsForRun = orderedIds
+    .map(id => questionMap.get(id))
+    .filter(Boolean);
+
+if (questionsForRun.length !== orderedIds.length) {
+    throw new Error('Could not load the saved quiz questions.');
+}
+
+const qs = questionsForRun.map(x => ({
+    ...x,
+    optionOrder: q.shuffleOptions
+        ? shuffle(['A', 'B', 'C', 'D'])
+        : ['A', 'B', 'C', 'D']
+}));
         quizRun = {
             questions: qs,
             index: 0,
@@ -806,8 +937,8 @@ async function finalizeAttempt(run, userId) {
         quizTitle: m.title,
         score: Number(data.attempt.score || 0),
         maxScore: run.questions.reduce(
-            (sum, q) => sum + Number(q.marks || m.points || 1), 0
-        ),
+    (sum, q) => sum + Number(q.marks ?? m.points ?? 1), 0
+),
         correct: 0,
         totalTime: Math.max(
             1,

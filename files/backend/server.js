@@ -380,6 +380,10 @@ app.get("/api/quizzes", async (req, res) => {
 });
 
 // Create a quiz with settings and questions
+/* ===============================
+   CREATE QUIZ API — SECONDS BASED
+================================ */
+
 app.post("/api/quizzes", verifyAdminToken, async (req, res) => {
   const client = await pool.connect();
 
@@ -387,7 +391,7 @@ app.post("/api/quizzes", verifyAdminToken, async (req, res) => {
     const {
       title,
       description = "",
-      duration_minutes = 30,
+      seconds_per_question = 45,
       category = "General",
       points = 1,
       shuffle_questions = false,
@@ -408,11 +412,15 @@ app.post("/api/quizzes", verifyAdminToken, async (req, res) => {
       });
     }
 
-    if (!Number.isInteger(Number(duration_minutes)) ||
-        Number(duration_minutes) < 1) {
+    const seconds = Number(seconds_per_question);
+
+console.log("Timer received by backend:", req.body.seconds_per_question);
+console.log("Timer parsed by backend:", seconds);
+
+if (!Number.isInteger(seconds) || seconds < 1) {
       return res.status(400).json({
         status: "error",
-        message: "Valid duration is required",
+        message: "Valid seconds per question is required",
       });
     }
 
@@ -427,24 +435,37 @@ app.post("/api/quizzes", verifyAdminToken, async (req, res) => {
 
     const quizResult = await client.query(
       `INSERT INTO quizzes (
-        title, description, duration_minutes, category, points,
-        shuffle_questions, shuffle_options, question_count,
-        password_protected, password_hash, scheduled_at,
-        expires_at, status
+        title,
+        description,
+        seconds_per_question,
+        category,
+        points,
+        shuffle_questions,
+        shuffle_options,
+        question_count,
+        password_protected,
+        password_hash,
+        scheduled_at,
+        expires_at,
+        status
       )
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       RETURNING *`,
       [
         title.trim(),
         description,
-        Number(duration_minutes),
+        seconds,
         category,
         Number(points),
         Boolean(shuffle_questions),
         Boolean(shuffle_options),
         Number(question_count),
         Boolean(password_protected),
-        password_protected ? (req.body.password ? await bcrypt.hash(String(req.body.password), 12) : password_hash) : null,
+        password_protected
+          ? (req.body.password
+              ? await bcrypt.hash(String(req.body.password), 12)
+              : password_hash)
+          : null,
         scheduled_at || null,
         expires_at || null,
         status,
@@ -461,8 +482,15 @@ app.post("/api/quizzes", verifyAdminToken, async (req, res) => {
 
       await client.query(
         `INSERT INTO questions (
-          quiz_id, question_text, option_a, option_b,
-          option_c, option_d, correct_option, explanation, marks
+          quiz_id,
+          question_text,
+          option_a,
+          option_b,
+          option_c,
+          option_d,
+          correct_option,
+          explanation,
+          marks
         )
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
@@ -482,19 +510,23 @@ app.post("/api/quizzes", verifyAdminToken, async (req, res) => {
     await client.query("COMMIT");
 
     const { password_hash: _passwordHash, ...safeQuiz } = quiz;
+
     res.status(201).json({
       status: "ok",
       quiz: safeQuiz,
       message: "Quiz and questions saved successfully",
     });
+
   } catch (error) {
     await client.query("ROLLBACK");
+
     console.error("Create quiz failed:", error.message);
 
     res.status(500).json({
       status: "error",
       message: "Unable to create quiz",
     });
+
   } finally {
     client.release();
   }
@@ -502,7 +534,8 @@ app.post("/api/quizzes", verifyAdminToken, async (req, res) => {
 
 
 
- // Update a quiz while preserving question IDs used by saved attempts.
+
+// Update a quiz while preserving question IDs used by saved attempts.
 app.put("/api/quizzes/:id", verifyAdminToken, async (req, res) => {
   const client = await pool.connect();
   let inTransaction = false;
@@ -525,6 +558,15 @@ app.put("/api/quizzes/:id", verifyAdminToken, async (req, res) => {
       });
     }
 
+    const seconds = Number(b.seconds_per_question);
+
+    if (!Number.isInteger(seconds) || seconds < 1) {
+      return res.status(400).json({
+        status: "error",
+        message: "Valid seconds per question is required"
+      });
+    }
+
     await client.query("BEGIN");
     inTransaction = true;
 
@@ -536,6 +578,7 @@ app.put("/api/quizzes/:id", verifyAdminToken, async (req, res) => {
     if (!old.rows.length) {
       await client.query("ROLLBACK");
       inTransaction = false;
+
       return res.status(404).json({
         status: "error",
         message: "Quiz not found"
@@ -552,15 +595,24 @@ app.put("/api/quizzes/:id", verifyAdminToken, async (req, res) => {
 
     await client.query(
       `UPDATE quizzes SET
-        title=$1, description=$2, duration_minutes=$3, category=$4,
-        points=$5, shuffle_questions=$6, shuffle_options=$7,
-        question_count=$8, password_protected=$9, password_hash=$10,
-        scheduled_at=$11, expires_at=$12, status=$13
+        title=$1,
+        description=$2,
+        seconds_per_question=$3,
+        category=$4,
+        points=$5,
+        shuffle_questions=$6,
+        shuffle_options=$7,
+        question_count=$8,
+        password_protected=$9,
+        password_hash=$10,
+        scheduled_at=$11,
+        expires_at=$12,
+        status=$13
        WHERE id=$14`,
       [
         String(b.title).trim(),
         b.description || "",
-        Math.max(1, Number(b.duration_minutes) || 30),
+        seconds,
         b.category || "General",
         Math.max(1, Number(b.points) || 1),
         !!b.shuffle_questions,
@@ -589,16 +641,23 @@ app.put("/api/quizzes/:id", verifyAdminToken, async (req, res) => {
     );
 
     const existing = existingResult.rows;
+
     const incoming = b.questions.filter(
       q => String(q.question_text ?? q.question ?? "").trim()
     );
 
     for (let i = 0; i < incoming.length; i++) {
       const q = incoming[i];
-      const questionText = String(q.question_text ?? q.question).trim();
+
+      const questionText = String(
+        q.question_text ?? q.question
+      ).trim();
+
       const answer =
         String(q.correct_option ?? q.answer ?? "A")
-          .toUpperCase().replace(/[^A-D]/g, "").slice(0, 1) || "A";
+          .toUpperCase()
+          .replace(/[^A-D]/g, "")
+          .slice(0, 1) || "A";
 
       const values = [
         questionText,
@@ -612,11 +671,16 @@ app.put("/api/quizzes/:id", verifyAdminToken, async (req, res) => {
       ];
 
       if (existing[i]) {
-        // Preserve the existing ID so saved answers remain linked.
         await client.query(
           `UPDATE questions SET
-             question_text=$1, option_a=$2, option_b=$3, option_c=$4,
-             option_d=$5, correct_option=$6, explanation=$7, marks=$8
+             question_text=$1,
+             option_a=$2,
+             option_b=$3,
+             option_c=$4,
+             option_d=$5,
+             correct_option=$6,
+             explanation=$7,
+             marks=$8
            WHERE id=$9 AND quiz_id=$10`,
           [...values, existing[i].id, id]
         );
@@ -631,7 +695,6 @@ app.put("/api/quizzes/:id", verifyAdminToken, async (req, res) => {
       }
     }
 
-    // Remove surplus questions only if no saved answer references them.
     for (const q of existing.slice(incoming.length)) {
       if (q.has_answers) {
         throw new Error(
@@ -660,6 +723,7 @@ app.put("/api/quizzes/:id", verifyAdminToken, async (req, res) => {
       quiz: safeQuiz,
       message: "Quiz updated successfully"
     });
+
   } catch (error) {
     if (inTransaction) {
       await client.query("ROLLBACK");
@@ -673,10 +737,12 @@ app.put("/api/quizzes/:id", verifyAdminToken, async (req, res) => {
         ? error.message
         : "Unable to update quiz"
     });
+
   } finally {
     client.release();
   }
 });
+
 
 
 // Delete a quiz; dependent questions and answer rows are removed explicitly.
@@ -709,115 +775,200 @@ app.post('/api/quizzes/:id/verify-password', async (req, res) => {
 
 // Start or resume a student quiz attempt
 app.post("/api/attempts/start", verifyStudentToken, async (req, res) => {
-  try {
-    const studentId = req.student.id;
-    const quizId = req.body.quiz_id;
+    const client = await pool.connect();
 
-    if (!quizId) {
-      return res.status(400).json({
-        status: "error",
-        message: "Quiz ID is required"
-      });
-    }
+    try {
+        const studentId = req.student.id;
+        const quizId = req.body.quiz_id;
+        const questionIds = req.body.question_ids;
 
-    const quizResult = await pool.query(
-      `SELECT id, duration_minutes
-       FROM quizzes
-       WHERE id = $1`,
-      [quizId]
-    );
+        if (!quizId) {
+            return res.status(400).json({
+                status: "error",
+                message: "Quiz ID is required"
+            });
+        }
 
-    if (quizResult.rows.length === 0) {
-      return res.status(404).json({
-        status: "error",
-        message: "Quiz not found"
-      });
-    }
+        if (
+            !Array.isArray(questionIds) ||
+            questionIds.length === 0 ||
+            questionIds.some(id => !/^\d+$/.test(String(id))) ||
+            new Set(questionIds.map(String)).size !== questionIds.length
+        ) {
+            return res.status(400).json({
+                status: "error",
+                message: "Valid question IDs are required"
+            });
+        }
 
-    const quiz = quizResult.rows[0];
+        await client.query("BEGIN");
 
-    // Check for an already submitted attempt
-    const submitted = await pool.query(
-      `SELECT id
-       FROM quiz_attempts
-       WHERE student_id = $1
-         AND quiz_id = $2
-         AND status = 'submitted'
-       LIMIT 1`,
-      [studentId, quizId]
-    );
-
-    if (submitted.rows.length > 0) {
-      return res.status(409).json({
-        status: "error",
-        message: "You have already submitted this quiz"
-      });
-    }
-
-    // Resume an existing attempt if available
-    const existing = await pool.query(
-      `SELECT id, started_at, expires_at, status
-       FROM quiz_attempts
-       WHERE student_id = $1
-         AND quiz_id = $2
-         AND status = 'in_progress'
-       ORDER BY started_at DESC
-       LIMIT 1`,
-      [studentId, quizId]
-    );
-
-    if (existing.rows.length > 0) {
-      let attempt = existing.rows[0];
-
-      // Set deadline for older attempts that have no deadline
-      if (!attempt.expires_at) {
-        const updated = await pool.query(
-          `UPDATE quiz_attempts
-           SET expires_at = started_at + ($1 * INTERVAL '1 minute')
-           WHERE id = $2
-           RETURNING id, started_at, expires_at, status`,
-          [quiz.duration_minutes, attempt.id]
+        const quizResult = await client.query(
+            `SELECT id, duration_minutes
+             FROM quizzes
+             WHERE id = $1`,
+            [quizId]
         );
 
-        attempt = updated.rows[0];
-      }
+        if (quizResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({
+                status: "error",
+                message: "Quiz not found"
+            });
+        }
 
-      return res.json({
-        status: "ok",
-        resumed: true,
-        attempt
-      });
+        const quiz = quizResult.rows[0];
+
+        // Verify that all selected questions belong to this quiz
+        const validQuestions = await client.query(
+            `SELECT id
+             FROM questions
+             WHERE quiz_id = $1
+               AND id = ANY($2::bigint[])`,
+            [quizId, questionIds]
+        );
+
+        if (validQuestions.rows.length !== questionIds.length) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({
+                status: "error",
+                message: "Some selected questions are invalid"
+            });
+        }
+
+        // Check for an already submitted attempt
+        const submitted = await client.query(
+            `SELECT id
+             FROM quiz_attempts
+             WHERE student_id = $1
+               AND quiz_id = $2
+               AND status = 'submitted'
+             LIMIT 1`,
+            [studentId, quizId]
+        );
+
+        if (submitted.rows.length > 0) {
+            await client.query("ROLLBACK");
+            return res.status(409).json({
+                status: "error",
+                message: "You have already submitted this quiz"
+            });
+        }
+
+        // Resume an existing attempt if available
+        const existing = await client.query(
+            `SELECT id, started_at, expires_at, status
+             FROM quiz_attempts
+             WHERE student_id = $1
+               AND quiz_id = $2
+               AND status = 'in_progress'
+             ORDER BY started_at DESC
+             LIMIT 1
+             FOR UPDATE`,
+            [studentId, quizId]
+        );
+
+        let attempt;
+        let resumed = false;
+
+        if (existing.rows.length > 0) {
+            attempt = existing.rows[0];
+            resumed = true;
+
+            // Set deadline for older attempts that have no deadline
+            if (!attempt.expires_at) {
+                const updated = await client.query(
+                    `UPDATE quiz_attempts
+                     SET expires_at = started_at + ($1 * INTERVAL '1 minute')
+                     WHERE id = $2
+                     RETURNING id, started_at, expires_at, status`,
+                    [quiz.duration_minutes, attempt.id]
+                );
+
+                attempt = updated.rows[0];
+            }
+
+            // Check whether this attempt already has saved questions
+            const savedQuestions = await client.query(
+                `SELECT question_id
+                 FROM attempt_questions
+                 WHERE attempt_id = $1
+                 ORDER BY question_order`,
+                [attempt.id]
+            );
+
+            // Save questions for older attempts that have none
+            if (savedQuestions.rows.length === 0) {
+                await client.query(
+                    `INSERT INTO attempt_questions
+                     (attempt_id, question_id, question_order)
+                     SELECT $1, selected.question_id, selected.question_order
+                     FROM unnest($2::bigint[]) WITH ORDINALITY
+                     AS selected(question_id, question_order)`,
+                    [attempt.id, questionIds]
+                );
+            }
+        } else {
+            // Create a new attempt
+            const result = await client.query(
+                `INSERT INTO quiz_attempts
+                 (student_id, quiz_id, started_at, expires_at, status)
+                 VALUES (
+                     $1,
+                     $2,
+                     NOW(),
+                     NOW() + ($3 * INTERVAL '1 minute'),
+                     'in_progress'
+                 )
+                 RETURNING id, started_at, expires_at, status`,
+                [studentId, quizId, quiz.duration_minutes]
+            );
+
+            attempt = result.rows[0];
+
+            // Save selected questions in their exact order
+            await client.query(
+                `INSERT INTO attempt_questions
+                 (attempt_id, question_id, question_order)
+                 SELECT $1, selected.question_id, selected.question_order
+                 FROM unnest($2::bigint[]) WITH ORDINALITY
+                 AS selected(question_id, question_order)`,
+                [attempt.id, questionIds]
+            );
+        }
+
+        // Return the saved question order
+        const savedQuestions = await client.query(
+            `SELECT question_id
+             FROM attempt_questions
+             WHERE attempt_id = $1
+             ORDER BY question_order`,
+            [attempt.id]
+        );
+
+        await client.query("COMMIT");
+
+        return res.status(resumed ? 200 : 201).json({
+            status: "ok",
+            resumed,
+            attempt,
+            question_ids: savedQuestions.rows.map(row => String(row.question_id))
+        });
+
+    } catch (error) {
+        await client.query("ROLLBACK");
+
+        console.error("Start attempt failed:", error.message);
+
+        return res.status(500).json({
+            status: "error",
+            message: "Unable to start quiz attempt"
+        });
+
+    } finally {
+        client.release();
     }
-
-    // Create a new attempt with server-side deadline
-    const result = await pool.query(
-      `INSERT INTO quiz_attempts
-       (student_id, quiz_id, started_at, expires_at, status)
-       VALUES (
-         $1,
-         $2,
-         NOW(),
-         NOW() + ($3 * INTERVAL '1 minute'),
-         'in_progress'
-       )
-       RETURNING id, started_at, expires_at, status`,
-      [studentId, quizId, quiz.duration_minutes]
-    );
-
-    return res.status(201).json({
-      status: "ok",
-      resumed: false,
-      attempt: result.rows[0]
-    });
-
-  } catch (error) {
-    console.error("Start attempt failed:", error.message);
-
-    return res.status(500).json({
-      status: "error",
-      message: "Unable to start quiz attempt"
-    });
-  }
 });
 
 // Save or update a student's answer
@@ -997,23 +1148,27 @@ app.post("/api/attempts/:attemptId/submit", verifyStudentToken, async (req, res)
 
 
     // Calculate score using saved answers and database correct answers
-    const scoreResult = await client.query(
-      `SELECT
-         COALESCE(SUM(
-           CASE
-             WHEN aa.selected_option = q.correct_option THEN q.marks
-             ELSE 0
-           END
-         ), 0) AS score,
-         COUNT(DISTINCT aa.question_id) AS answer_count,
-         COUNT(q.id) AS total_questions
-       FROM questions q
-       LEFT JOIN attempt_answers aa
-         ON aa.question_id = q.id
-         AND aa.attempt_id = $1
-       WHERE q.quiz_id = $2`,
-      [attemptId, attempt.quiz_id]
-    );
+
+const scoreResult = await client.query(
+  `SELECT
+     COALESCE(SUM(
+       CASE
+         WHEN aa.selected_option = q.correct_option THEN q.marks
+         ELSE 0
+       END
+     ), 0) AS score,
+     COUNT(DISTINCT aa.question_id) AS answer_count,
+     COUNT(aq.question_id) AS total_questions
+   FROM attempt_questions aq
+   JOIN questions q
+     ON q.id = aq.question_id
+   LEFT JOIN attempt_answers aa
+     ON aa.question_id = q.id
+     AND aa.attempt_id = aq.attempt_id
+   WHERE aq.attempt_id = $1`,
+  [attemptId]
+);
+
 
     const score = Number(scoreResult.rows[0].score || 0);
 
@@ -1054,30 +1209,114 @@ app.post("/api/attempts/:attemptId/submit", verifyStudentToken, async (req, res)
 });
 
 
+
 // Results are normalized into the shape used by the existing frontend.
 app.get('/api/results', async (req, res) => {
   try {
-    const params = []; let where = '';
-    if (req.query.studentId) { params.push(req.query.studentId); where = 'WHERE a.student_id=$1'; }
-    const r = await pool.query(`SELECT a.id,a.student_id,a.quiz_id,a.started_at,a.submitted_at,a.score,a.status,
-      s.full_name,s.email,q.title,q.points,q.duration_minutes
-      FROM quiz_attempts a JOIN students s ON s.id=a.student_id JOIN quizzes q ON q.id=a.quiz_id ${where}
-      ORDER BY a.submitted_at DESC NULLS LAST`, params);
-    const results = [];
-    for (const row of r.rows) {
-      const detail = await pool.query(`SELECT aa.question_id,aa.selected_option,aa.is_correct,aa.marks_awarded,
-        qu.question_text,qu.option_a,qu.option_b,qu.option_c,qu.option_d,qu.correct_option,qu.explanation,qu.marks
-        FROM attempt_answers aa JOIN questions qu ON qu.id=aa.question_id WHERE aa.attempt_id=$1 ORDER BY aa.id`, [row.id]);
-      const maxScore = detail.rows.reduce((sum,x)=>sum+Number(x.marks||1),0);
-      const correct = detail.rows.filter(x=>x.is_correct).length;
-      results.push({ id: `r${row.id}`, attemptId: String(row.id), userId: String(row.student_id), userName: row.full_name, userEmail: row.email,
-        quizId: String(row.quiz_id), quizTitle: row.title, score: Number(row.score||0), maxScore, correct,
-        totalTime: Math.max(1, Math.round((new Date(row.submitted_at||Date.now())-new Date(row.started_at||row.submitted_at||Date.now()))/1000)),
-        finishedAt: row.submitted_at, answers: detail.rows.map(x=>({selected:x.selected_option, correct: x.is_correct})),
-        questionSnapshot: detail.rows.map(x=>({id:String(x.question_id),question:x.question_text,optionA:x.option_a,optionB:x.option_b,optionC:x.option_c,optionD:x.option_d,answer:x.correct_option,explanation:x.explanation,marks:Number(x.marks||1)})) });
+    const params = [];
+    let where = '';
+
+    if (req.query.studentId) {
+      params.push(req.query.studentId);
+      where = 'WHERE a.student_id = $1';
     }
+
+    const r = await pool.query(`
+      SELECT
+        a.id, a.student_id, a.quiz_id, a.started_at, a.submitted_at,
+        a.score, a.status,
+        s.full_name, s.email,
+        q.title, q.points, q.duration_minutes
+      FROM quiz_attempts a
+      JOIN students s ON s.id = a.student_id
+      JOIN quizzes q ON q.id = a.quiz_id
+      ${where}
+      ORDER BY a.submitted_at DESC NULLS LAST
+    `, params);
+
+    const results = [];
+
+    for (const row of r.rows) {
+      const detail = await pool.query(`
+        SELECT
+          qu.id AS question_id,
+          aa.selected_option,
+          aa.is_correct,
+          aa.marks_awarded,
+          qu.question_text,
+          qu.option_a,
+          qu.option_b,
+          qu.option_c,
+          qu.option_d,
+          qu.correct_option,
+          qu.explanation,
+          qu.marks
+        FROM attempt_questions aq
+        JOIN questions qu
+          ON qu.id = aq.question_id
+        LEFT JOIN attempt_answers aa
+          ON aa.question_id = qu.id
+          AND aa.attempt_id = aq.attempt_id
+        WHERE aq.attempt_id = $1
+        ORDER BY aq.question_order
+      `, [row.id]);
+
+      const maxScore = detail.rows.reduce(
+        (sum, x) => sum + Number(x.marks || 1), 0
+      );
+
+      const correct = detail.rows.filter(
+        x => x.is_correct === true
+      ).length;
+
+      results.push({
+        id: `r${row.id}`,
+        attemptId: String(row.id),
+        userId: String(row.student_id),
+        userName: row.full_name,
+        userEmail: row.email,
+        quizId: String(row.quiz_id),
+        quizTitle: row.title,
+        score: Number(row.score || 0),
+        maxScore,
+        correct,
+        totalTime: Math.max(
+          1,
+          Math.round(
+            (new Date(row.submitted_at || Date.now()) -
+             new Date(row.started_at || row.submitted_at || Date.now())) / 1000
+          )
+        ),
+        finishedAt: row.submitted_at,
+
+        answers: detail.rows.map(x => ({
+          selected: x.selected_option || null,
+          correct: x.is_correct === true
+        })),
+
+        questionSnapshot: detail.rows.map(x => ({
+          id: String(x.question_id),
+          question: x.question_text,
+          optionA: x.option_a,
+          optionB: x.option_b,
+          optionC: x.option_c,
+          optionD: x.option_d,
+          answer: x.correct_option,
+          explanation: x.explanation,
+          marks: Number(x.marks || 1)
+        }))
+      });
+    }
+
     res.json({ status: 'ok', results });
-  } catch (error) { console.error('Fetch results failed:', error.message); res.status(500).json({ status: 'error', message: 'Unable to fetch results' }); }
+
+  } catch (error) {
+    console.error('Fetch results failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Unable to fetch results'
+    });
+  }
 });
 
 app.get('/api/students', verifyAdminToken, async (req,res) => {
