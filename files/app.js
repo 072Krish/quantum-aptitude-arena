@@ -112,6 +112,7 @@ localStorage.setItem('quantum_admin_token', data.token);
         }
 
         const student = data.student;
+        localStorage.setItem('quantum_student_token', data.token);
 
         currentUser = {
             id: String(student.id),
@@ -278,7 +279,7 @@ function adminOverview() {
     const users = db.users.filter(u => u.role === 'student'), res = db.results, L = quizzes(), live = L.filter(q => quizState(q) === 'open').length, avg = res.length ? res.reduce((s, r) => s + r.totalTime, 0) / res.length : 0, latest = recent(10, res), seen = new Set(), lat7 = recent(999, res).filter(r => !seen.has(r.userId) && seen.add(r.userId)).slice(0, 7), mx = Math.max(...lat7.map(r => averageTimeForUser(r.userId) || 0), 1);
     return `${head('Control the arena', 'Your competition at a glance. Latest activity first.', '<button class="btn btn-primary" id="openCreate">＋ Create quiz</button>')}<div class="stats-grid">${stat('REGISTERED USERS', users.length, 'Student accounts', '♙')}${stat('QUIZZES', L.length, `${live} live right now`, '∑')}${stat('QUIZ ATTEMPTS', res.length, 'Across all quizzes', '◷')}${stat('AVG. COMPLETION TIME', res.length ? fmtTime(avg) : '—', 'Across attempts', '◴')}</div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h3>Participant performance</h3><p>Latest ${latest.length} of ${res.length} submissions</p></div><button class="text-link" data-go="leaderboard">View more ↗</button></div>${latest.length ? `<div class="table-wrap"><table><thead><tr><th>PARTICIPANT</th><th>QUIZ</th><th>SCORE</th><th>TIME</th><th>RANK</th></tr></thead><tbody>${latest.map(r => `<tr><td>${userCell(userFor(r.userId))}</td><td>${esc(r.quizTitle)}</td><td><strong>${r.score}/${r.maxScore}</strong></td><td>${fmtTime(r.totalTime)}</td><td><span class="badge muted-badge">#${leaderboard(r.quizId).findIndex(x => x.userId === r.userId) + 1}</span></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-state"><strong>No scores yet</strong>Submissions will appear here.</div>`}</section><section class="panel"><div class="panel-head"><div><h3>Quizzes</h3><p>${L.length} total · ${live} live</p></div><button class="text-link" data-go="quiz">Manage ↗</button></div>${L.length ? `<div class="mini-list">${L.slice(-4).reverse().map(q => `<div class="mini-row"><div><strong>${esc(q.title)}</strong><small class="subtext">${qCount(q)} questions · ${q.seconds}s each</small></div><span class="badge">${statusPill(q).replace('● ', '')}</span></div>`).join('')}</div>` : `<div class="empty-state"><strong>No quizzes yet.</strong>Create one to open a challenge.</div>`}</section></div><div class="analytics-grid"><section class="panel"><div class="panel-head"><div><h3>Average time per participant</h3><p>Latest ${lat7.length} participants</p></div><button class="text-link" data-go="leaderboard">View more ↗</button></div>${lat7.length ? `<div class="bar-chart">${lat7.map(r => { const u = userFor(r.userId), t = averageTimeForUser(r.userId) || 0; return `<div class="bar-row"><span>${esc(u.name.split(' ')[0])}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(3, t / mx * 100)}%"></div></div><b>${Math.round(t)}s</b></div>` }).join('')}</div>` : `<div class="empty-state">Timing analytics will appear after the first submission.</div>`}</section><section class="panel"><div class="panel-head"><div><h3>Quick actions</h3><p>Manage your competition</p></div></div><div class="quick-actions"><button class="btn btn-secondary" data-go="users">♙ View registered users</button> <button class="btn btn-secondary" data-go="leaderboard">♜ Open leaderboard</button> <button class="btn btn-secondary" data-go="quiz">∑ Quiz settings</button></div></section></div>`
 }
-function quizCardS(q) { const my = myResult(q), st = quizState(q), n = qCount(q), rr = my ? myRank(q.id) : null, pill = my ? 'COMPLETED' : st === 'open' ? 'OPEN FOR ENTRY' : st === 'scheduled' ? 'OPENS ' + fmtDT(q.startAt).toUpperCase() : 'CLOSED'; return `<section class="quiz-card"><div class="quiz-card-top"><span class="pill pill-purple">${esc(q.category)}</span><span class="pill pill-live">● ${pill}</span></div><h2>${esc(q.title)}</h2><p>${my ? `You scored <b>${my.score}/${my.maxScore}</b> in ${fmtTime(my.totalTime)}. One attempt is allowed per quiz.` : 'One attempt only. The quiz opens in full screen and every question has its own timer.'}</p><div class="quiz-meta"><span>▤ <b>${n} questions</b></span><span>◷ <b>${q.seconds}s each</b></span><span>✦ <b>${n * q.points} max points</b></span>${q.passwordProtected ? '<span>🔒 <b>Password</b></span>' : ''}${q.expiresAt ? `<span>⏰ closes <b>${fmtDT(q.expiresAt)}</b></span>` : ''}</div><div class="card-actions">${my ? `<button class="btn btn-secondary" data-res="${my.id}">View result</button>${st !== 'closed' ? `<span class="rank-note">🔒 Rank unlocks ${q.expiresAt ? 'after ' + fmtDT(q.expiresAt) : 'when the quiz closes'}</span>` : rankShown[q.id] && rr ? `<span class="rank-note">Expected rank <b>#${rr.rank}</b> of ${rr.total}</span>` : `<button class="btn btn-ghost" data-rank="${q.id}">Show expected rank</button>`}` : st === 'open' ? `<button class="btn btn-primary" data-start="${q.id}">Start quiz <span>↗</span></button>` : `<button class="btn btn-secondary" disabled>${st === 'closed' ? 'Quiz closed' : 'Not open yet'}</button>`}</div></section>` }
+function quizCardS(q) { const my = myResult(q), st = quizState(q), n = qCount(q), rr = my ? myRank(q.id) : null, saved = db.inProgress[currentUser.id], hasSavedAttempt = saved && String(saved.meta.quizId) === String(q.id), pill = my ? 'COMPLETED' : hasSavedAttempt ? 'IN PROGRESS' : st === 'open' ? 'OPEN FOR ENTRY' : st === 'scheduled' ? 'OPENS ' + fmtDT(q.startAt).toUpperCase() : 'CLOSED'; return `<section class="quiz-card"><div class="quiz-card-top"><span class="pill pill-purple">${esc(q.category)}</span><span class="pill pill-live">● ${pill}</span></div><h2>${esc(q.title)}</h2><p>${my ? `You scored <b>${my.score}/${my.maxScore}</b> in ${fmtTime(my.totalTime)}. One attempt is allowed per quiz.` : hasSavedAttempt ? 'You have an unfinished attempt. Resume your quiz to continue.' : 'One attempt only. The quiz opens in full screen and every question has its own timer.'}</p><div class="quiz-meta"><span>▤ <b>${n} questions</b></span><span>◷ <b>${q.seconds}s each</b></span><span>✦ <b>${n * q.points} max points</b></span>${q.passwordProtected ? '<span>🔒 <b>Password</b></span>' : ''}${q.expiresAt ? `<span>⏰ closes <b>${fmtDT(q.expiresAt)}</b></span>` : ''}</div><div class="card-actions">${hasSavedAttempt ? `<button class="btn btn-primary" onclick="resumeQuiz()">Resume quiz ↗</button>` : my ? `<button class="btn btn-secondary" data-res="${my.id}">View result</button>${st !== 'closed' ? `<span class="rank-note">🔒 Rank unlocks ${q.expiresAt ? 'after ' + fmtDT(q.expiresAt) : 'when the quiz closes'}</span>` : rankShown[q.id] && rr ? `<span class="rank-note">Expected rank <b>#${rr.rank}</b> of ${rr.total}</span>` : `<button class="btn btn-ghost" data-rank="${q.id}">Show expected rank</button>`}` : st === 'open' ? `<button class="btn btn-primary" data-start="${q.id}">Start quiz <span>↗</span></button>` : `<button class="btn btn-secondary" disabled>${st === 'closed' ? 'Quiz closed' : 'Not open yet'}</button>`}</div></section>`; }
 function studentOverview() { const L = quizzes(), mine = db.results.filter(r => r.userId === currentUser.id), acc = mine.length ? Math.round(mine.reduce((s, r) => s + r.score / Math.max(1, r.maxScore), 0) / mine.length * 100) : 0; lastState = sig(); return `${head('Your arena', 'One attempt per quiz. Make each one count.')}${L.length ? `<div class="stats-grid">${stat('QUIZZES', L.length, `${L.filter(q => quizState(q) === 'open').length} open now`, '∑')}${stat('COMPLETED', mine.length, 'Attempts used', '✦')}${stat('ACCURACY', mine.length ? acc + '%' : '—', 'Average across attempts', '◎')}${stat('TIME SPENT', mine.length ? fmtTime(mine.reduce((s, r) => s + r.totalTime, 0)) : '—', 'Across attempts', '◷')}</div><div class="quiz-list">${L.map(quizCardS).join('')}</div>` : `<div class="empty-state"><strong>No quiz is live right now.</strong>Check back when your teacher schedules the next challenge.</div>`}` }
 function lbUpdate() { lbState.quiz = $('#lbQuiz').value; lbState.sort = $('#lbSort').value; lbState.q = $('#lbSearch').value; const rows = lbRows(); $('#lbCount').textContent = `${rows.length} entries · best attempt per participant per quiz`; $('#lbTable').innerHTML = lbTable(rows); const lv = $('#lbLive'); if (lv) lv.textContent = '● LIVE · ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) }
 let lbState = { quiz: null, q: '', sort: 'rank' };
@@ -433,7 +434,7 @@ option_d: q.option_d ?? q.optionD ?? q.options?.[3] ?? q.d ?? '',
 function exportUsers() { let rows = [['Name', 'Email', 'Role', 'Registered At', 'Quiz Status', 'Best Score', 'Average Time Seconds']]; db.users.filter(u => u.role === 'student').forEach(u => { let rs = db.results.filter(r => r.userId === u.id), best = rs.reduce((a, r) => !a || r.score > a.score ? r : a, null); rows.push([u.name, u.email, u.role, u.registeredAt, rs.length ? 'Completed' : 'Not attempted', best ? best.score : '', averageTimeForUser(u.id) ?? '']) }); let csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n'), url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), a = document.createElement('a'); a.href = url; a.download = 'quantum_registered_users.csv'; a.click(); URL.revokeObjectURL(url); toast('Registered users CSV exported.') }
 function shuffle(arr) { let a = [...arr]; for (let i = a.length - 1; i > 0; i--) { let j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]] } return a }
 function stopQuestionTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null } }
-function renderQuestion() { stopQuestionTimer(); let q = quizRun.questions[quizRun.index]; console.log("QUESTION OPTIONS:", { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD }); quizRun.remaining = quizConfig.seconds; quizRun.questionStarted = Date.now(); $('#quizTopCount').textContent = `QUESTION ${String(quizRun.index + 1).padStart(2, '0')} / ${String(quizRun.questions.length).padStart(2, '0')}`; $('#questionIndex').innerHTML = `${String(quizRun.index + 1).padStart(2, '0')} <span>/ ${quizRun.questions.length}</span>`; $('#questionCategory').textContent = q.category || quizConfig.category.toUpperCase(); $('#questionText').textContent = q.question; $('#timerValue').textContent = quizRun.remaining; $('#timerRing').style.borderColor = 'var(--lime)'; $('#quizProgressFill').style.width = `${quizRun.index / quizRun.questions.length * 100}%`; $('#optionsGrid').innerHTML = q.optionOrder.map((letter, i) => `<button class="option-card ${quizRun.answers[quizRun.index] === letter ? 'selected' : ''}" data-answer="${letter}"><span class="option-letter">${String.fromCharCode(65 + i)}</span><span class="option-text">${esc(q['option' + letter])}</span></button>`).join(''); $$('[data-answer]').forEach(b => b.onclick = () => { quizRun.answers[quizRun.index] = b.dataset.answer; persistRun(); $$('[data-answer]').forEach(x => x.classList.toggle('selected', x === b)); renderDots() }); $('#prevQuestion').disabled = quizRun.index === 0; $('#prevQuestion').style.opacity = quizRun.index === 0 ? '.45' : '1'; $('#nextQuestion').classList.toggle('hidden', quizRun.index === quizRun.questions.length - 1); $('#submitQuiz').classList.toggle('hidden', quizRun.index !== quizRun.questions.length - 1); $('#clearAnswer').onclick = () => { delete quizRun.answers[quizRun.index]; persistRun(); $$('[data-answer]').forEach(x => x.classList.remove('selected')); renderDots() }; $('#prevQuestion').onclick = () => moveQuestion(-1); $('#nextQuestion').onclick = () => moveQuestion(1); $('#submitQuiz').onclick = () => submitQuiz(); renderDots(); timerInterval = setInterval(() => { if (['closed', 'none'].includes(quizState())) { stopQuestionTimer(); return submitQuiz(true) } quizRun.remaining--; $('#timerValue').textContent = quizRun.remaining; if (quizRun.remaining <= 10) $('#timerRing').style.borderColor = 'var(--pink)'; if (quizRun.remaining <= 0) { stopQuestionTimer(); if (quizRun.index < quizRun.questions.length - 1) moveQuestion(1); else submitQuiz(true) } }, 1000) }
+function renderQuestion() { stopQuestionTimer(); let q = quizRun.questions[quizRun.index]; console.log("QUESTION OPTIONS:", { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD }); const deadline = new Date(quizRun.expiresAt).getTime(); const updateTimer = () => { const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000)); quizRun.remaining = remaining; $('#timerValue').textContent = remaining; $('#timerRing').style.borderColor = remaining <= 10 ? 'var(--pink)' : 'var(--lime)'; if (remaining <= 0) { stopQuestionTimer(); submitQuiz(true); } }; quizRun.questionStarted = Date.now(); $('#quizTopCount').textContent = `QUESTION ${String(quizRun.index + 1).padStart(2, '0')} / ${String(quizRun.questions.length).padStart(2, '0')}`; $('#questionIndex').innerHTML = `${String(quizRun.index + 1).padStart(2, '0')} <span>/ ${quizRun.questions.length}</span>`; $('#questionCategory').textContent = q.category || quizConfig.category.toUpperCase(); $('#questionText').textContent = q.question; $('#timerRing').style.borderColor = 'var(--lime)'; $('#quizProgressFill').style.width = `${quizRun.index / quizRun.questions.length * 100}%`; $('#optionsGrid').innerHTML = q.optionOrder.map((letter, i) => `<button class="option-card ${quizRun.answers[quizRun.index] === letter ? 'selected' : ''}" data-answer="${letter}"><span class="option-letter">${String.fromCharCode(65 + i)}</span><span class="option-text">${esc(q['option' + letter])}</span></button>`).join(''); $$('[data-answer]').forEach(b => { b.onclick = () => { quizRun.answers[quizRun.index] = b.dataset.answer; persistRun(); saveAnswerToServer(q.id, b.dataset.answer); $$('[data-answer]').forEach(x => x.classList.toggle('selected', x === b)); renderDots(); }; }); $('#prevQuestion').disabled = quizRun.index === 0; $('#prevQuestion').style.opacity = quizRun.index === 0 ? '.45' : '1'; $('#nextQuestion').classList.toggle('hidden', quizRun.index === quizRun.questions.length - 1); $('#submitQuiz').classList.toggle('hidden', quizRun.index !== quizRun.questions.length - 1); $('#clearAnswer').onclick = () => { const q = quizRun.questions[quizRun.index]; delete quizRun.answers[quizRun.index]; persistRun(); $$('[data-answer]').forEach(x => x.classList.remove('selected')); renderDots(); clearAnswerOnServer(q.id); }; $('#prevQuestion').onclick = () => moveQuestion(-1); $('#nextQuestion').onclick = () => moveQuestion(1); $('#submitQuiz').onclick = () => submitQuiz(); renderDots(); updateTimer(); timerInterval = setInterval(updateTimer, 1000); }
 function renderDots() { $('#questionDots').innerHTML = quizRun.questions.map((q, i) => `<button class="question-dot ${i === quizRun.index ? 'current' : ''} ${quizRun.answers[i] ? 'answered' : ''}" title="Question ${i + 1}" data-dot="${i}"></button>`).join(''); $$('[data-dot]').forEach(b => b.onclick = () => { quizRun.index = +b.dataset.dot; renderQuestion() }) }
 function moveQuestion(d) { quizRun.index = Math.max(0, Math.min(quizRun.questions.length - 1, quizRun.index + d)); renderQuestion() }
 
@@ -455,24 +456,404 @@ function enterFullscreen() { const el = document.documentElement, f = el.request
 function leaveFullscreen() { try { if (document.fullscreenElement) { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => { }) } } catch (e) { } }
 document.addEventListener('fullscreenchange', () => { const live = quizRun && !$('#quizOverlay').classList.contains('hidden'); $('#fsPrompt').classList.toggle('hidden', !(live && !document.fullscreenElement)) });
 $('#fsResume').onclick = enterFullscreen;
-function persistRun() { if (quizRun && currentUser) { db.inProgress[currentUser.id] = { questions: quizRun.questions, answers: quizRun.answers, startedAt: quizRun.startedAt, meta: quizRun.meta }; saveDB() } }
-async function startQuiz(id) { const q = quizzes().find(x => x.id === id); if (!q) return toast('This quiz is no longer available.'); useQuiz(q); if (myResult(q) || db.inProgress[currentUser.id]) return toast('You have already used your one attempt.'); const st = quizState(q); if (st === 'scheduled') return toast('This quiz has not opened yet.'); if (st !== 'open') return toast('This quiz has closed.'); if (q.passwordProtected && !(await askPassword())) return; if (quizState(q) !== 'open') return toast('This quiz has closed.'); const pool = q.shuffleQuestions ? shuffle(q.questions) : [...q.questions], qs = pool.slice(0, qCount(q)).map(x => ({ ...x, optionOrder: q.shuffleOptions ? shuffle(['A', 'B', 'C', 'D']) : ['A', 'B', 'C', 'D'] })); quizRun = { questions: qs, index: 0, answers: {}, startedAt: Date.now(), meta: { quizId: q.id, title: q.title, points: q.points, seconds: q.seconds } }; persistRun(); $('#quizOverlay').classList.remove('hidden'); enterFullscreen(); renderQuestion() }
+let serverAttemptId = null;
+document.addEventListener('contextmenu', (e) => {
+    if (quizRun && window.matchMedia('(min-width: 769px)').matches) {
+        e.preventDefault();
+    }
+});
+
+let pendingAnswerQueue = JSON.parse(
+    localStorage.getItem('quantum_pending_answers') || '[]'
+);
+
+
+function savePendingAnswer(questionId, selectedOption, action = 'save') {
+    const existingIndex = pendingAnswerQueue.findIndex(
+        item => String(item.attemptId) === String(serverAttemptId) &&
+                String(item.questionId) === String(questionId)
+    );
+
+    const answer = {
+        attemptId: serverAttemptId,
+        questionId,
+        selectedOption: action === 'clear' ? null : selectedOption,
+        action
+    };
+
+    if (existingIndex >= 0) {
+        pendingAnswerQueue[existingIndex] = answer;
+    } else {
+        pendingAnswerQueue.push(answer);
+    }
+
+    localStorage.setItem(
+        'quantum_pending_answers',
+        JSON.stringify(pendingAnswerQueue)
+    );
+}
+
+async function saveAnswerToServer(questionId, selectedOption) {
+    if (!serverAttemptId || !currentUser) return false;
+
+    const token = localStorage.getItem('quantum_student_token');
+
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/attempts/${serverAttemptId}/answer`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    question_id: questionId,
+                    selected_option: selectedOption
+                })
+            }
+        );
+
+        if (!response.ok) throw new Error('Answer save failed');
+
+        pendingAnswerQueue = pendingAnswerQueue.filter(
+            item => !(String(item.attemptId) === String(serverAttemptId) &&
+                      String(item.questionId) === String(questionId))
+        );
+
+        localStorage.setItem(
+            'quantum_pending_answers',
+            JSON.stringify(pendingAnswerQueue)
+        );
+
+        return true;
+    } catch (error) {
+        savePendingAnswer(questionId, selectedOption, 'save');
+        console.warn('Answer queued for sync:', error.message);
+        return false;
+    }
+}
+
+async function clearAnswerOnServer(questionId) {
+    if (!serverAttemptId || !currentUser) return false;
+
+    const token = localStorage.getItem('quantum_student_token');
+
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/attempts/${serverAttemptId}/answer`,
+            {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    question_id: questionId
+                })
+            }
+        );
+
+        if (!response.ok) throw new Error('Answer clear failed');
+
+        pendingAnswerQueue = pendingAnswerQueue.filter(
+            item => !(String(item.attemptId) === String(serverAttemptId) &&
+                      String(item.questionId) === String(questionId))
+        );
+
+        localStorage.setItem(
+            'quantum_pending_answers',
+            JSON.stringify(pendingAnswerQueue)
+        );
+
+        return true;
+    } catch (error) {
+        savePendingAnswer(questionId, null, 'clear');
+        console.warn('Answer clear queued for sync:', error.message);
+        return false;
+    }
+}
+
+async function syncPendingAnswers() {
+    if (!navigator.onLine || !currentUser) return;
+
+    const token = localStorage.getItem('quantum_student_token');
+    if (!token) return;
+
+    for (const item of [...pendingAnswerQueue]) {
+        try {
+            const isClear = item.action === 'clear';
+
+            const response = await fetch(
+                `${API_BASE}/api/attempts/${item.attemptId}/answer`,
+                {
+                    method: isClear ? 'DELETE' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(
+                        isClear
+                            ? { question_id: item.questionId }
+                            : {
+                                question_id: item.questionId,
+                                selected_option: item.selectedOption
+                            }
+                    )
+                }
+            );
+
+            if (!response.ok) continue;
+
+            pendingAnswerQueue = pendingAnswerQueue.filter(
+                x => !(String(x.attemptId) === String(item.attemptId) &&
+                       String(x.questionId) === String(item.questionId))
+            );
+
+            localStorage.setItem(
+                'quantum_pending_answers',
+                JSON.stringify(pendingAnswerQueue)
+            );
+        } catch (error) {
+            console.warn('Pending answer sync failed:', error.message);
+            break;
+        }
+    }
+}
+
+
+window.addEventListener('online', syncPendingAnswers);
+function persistRun() {
+    if (quizRun && currentUser) {
+        db.inProgress[currentUser.id] = {
+            questions: quizRun.questions,
+            answers: quizRun.answers,
+            startedAt: quizRun.startedAt,
+            expiresAt: quizRun.expiresAt,
+            serverAttemptId: serverAttemptId,
+            meta: quizRun.meta
+        };
+
+        saveDB();
+    }
+}
+
+function resumeQuiz() {
+    if (!currentUser) return;
+
+    const saved = db.inProgress[currentUser.id];
+
+    if (!saved) {
+        return toast('No incomplete quiz found.');
+    }
+
+    const q = quizzes().find(
+        quiz => String(quiz.id) === String(saved.meta.quizId)
+    );
+
+    if (!q) {
+        return toast('The saved quiz is no longer available.');
+    }
+
+    if (saved.expiresAt && Date.now() >= new Date(saved.expiresAt).getTime()) {
+        return toast('This quiz has expired.');
+    }
+
+    useQuiz(q);
+
+    serverAttemptId = saved.serverAttemptId || null;
+
+    quizRun = {
+        questions: saved.questions,
+        answers: saved.answers || {},
+        index: Math.max(0, saved.questions.findIndex((q, i) => !saved.answers?.[i])),
+        startedAt: saved.startedAt,
+        expiresAt: saved.expiresAt,
+        serverAttemptId,
+        meta: saved.meta
+    };
+
+    $('#quizOverlay').classList.remove('hidden');
+    enterFullscreen();
+    renderQuestion();
+
+    syncPendingAnswers();
+}
+
+async function startQuiz(id) {
+    const q = quizzes().find(x => x.id === id);
+
+    if (!q) return toast('This quiz is no longer available.');
+
+    useQuiz(q);
+
+    if (myResult(q)) {
+    return toast('You have already used your one attempt.');
+}
+
+    const st = quizState(q);
+
+    if (st === 'scheduled') return toast('This quiz has not opened yet.');
+    if (st !== 'open') return toast('This quiz has closed.');
+
+    if (q.passwordProtected && !(await askPassword())) return;
+
+    if (quizState(q) !== 'open') {
+        return toast('This quiz has closed.');
+    }
+
+    const token = localStorage.getItem('quantum_student_token');
+
+    if (!token) {
+        return toast('Please log in again.');
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/attempts/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ quiz_id: q.id })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Could not start quiz.');
+        }
+
+        serverAttemptId = data.attempt.id;
+
+        const pool = q.shuffleQuestions
+            ? shuffle(q.questions)
+            : [...q.questions];
+
+        const qs = pool.slice(0, qCount(q)).map(x => ({
+            ...x,
+            optionOrder: q.shuffleOptions
+                ? shuffle(['A', 'B', 'C', 'D'])
+                : ['A', 'B', 'C', 'D']
+        }));
+
+        quizRun = {
+            questions: qs,
+            index: 0,
+            answers: {},
+            startedAt: Date.now(),
+            expiresAt: data.attempt.expires_at,
+            serverAttemptId,
+            meta: {
+                quizId: q.id,
+                title: q.title,
+                points: q.points,
+                seconds: q.seconds
+            }
+        };
+
+        persistRun();
+
+        $('#quizOverlay').classList.remove('hidden');
+        enterFullscreen();
+        renderQuestion();
+
+    } catch (error) {
+        console.error('Quiz start failed:', error);
+        toast(error.message || 'Could not start quiz.');
+    }
+}
 async function finalizeAttempt(run, userId) {
-    const m = run.meta || { quizId: quizConfig.id, title: quizConfig.title, points: quizConfig.points, seconds: quizConfig.seconds };
-    const ql = run.questions;
-    const answers = ql.map((q, i) => ({ selected: run.answers[i] || null }));
-    const correct = ql.reduce((n, q, i) => n + (run.answers[i] === q.answer ? 1 : 0), 0);
-    const local = { id: 'r' + Date.now(), userId: String(userId), quizId: String(m.quizId), quizTitle: m.title, score: correct * m.points, maxScore: ql.length * m.points, correct,
-        totalTime: Math.max(1, Math.min(ql.length * m.seconds, Math.round((Date.now() - run.startedAt) / 1000))), answers,
-        questionSnapshot: ql.map(q => ({ ...q })), finishedAt: new Date().toISOString() };
-    const payload = { student_id: userId, quiz_id: m.quizId, started_at: new Date(run.startedAt).toISOString(), answers: ql.map((q,i)=>({question_id:q.id, selected_option:run.answers[i] || null})) };
-    const response = await fetch(`${API_BASE}/api/attempts`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const m = run.meta || {
+        quizId: quizConfig.id,
+        title: quizConfig.title,
+        points: quizConfig.points,
+        seconds: quizConfig.seconds
+    };
+
+    if (!serverAttemptId) {
+        throw new Error("Attempt ID missing. Please resume your quiz.");
+    }
+
+    const token = localStorage.getItem("quantum_student_token");
+
+    if (!token) {
+        throw new Error("Login session expired. Please log in again.");
+    }
+
+    const response = await fetch(
+        `${API_BASE}/api/attempts/${serverAttemptId}/submit`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            }
+        }
+    );
+
     const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Could not save attempt to PostgreSQL.');
-    local.id = String(data.attempt.id); local.attemptId = local.id;
-    local.score = Number(data.attempt.score || 0); local.finishedAt = data.attempt.submitted_at || local.finishedAt;
-    db.results.push(local); delete db.inProgress[userId]; saveDB();
-    try { const rr = await fetch(`${API_BASE}/api/results?studentId=${encodeURIComponent(userId)}`); if (rr.ok) { const rd = await rr.json(); if (rd.status === 'ok') { db.results = db.results.filter(x=>String(x.userId)!==String(userId)).concat((rd.results||[]).map(mapApiResult)); saveDB(); return db.results.find(x=>String(x.id)===String(local.id)) || local; } } } catch(e) {}
+
+    if (!response.ok) {
+        throw new Error(data.message || "Could not submit quiz.");
+    }
+
+    const local = {
+        id: `r${data.attempt.id}`,
+        attemptId: String(data.attempt.id),
+        userId: String(userId),
+        quizId: String(m.quizId),
+        quizTitle: m.title,
+        score: Number(data.attempt.score || 0),
+        maxScore: run.questions.reduce(
+            (sum, q) => sum + Number(q.marks || m.points || 1), 0
+        ),
+        correct: 0,
+        totalTime: Math.max(
+            1,
+            Math.round((Date.now() - run.startedAt) / 1000)
+        ),
+        answers: run.questions.map((q, i) => ({
+            selected: run.answers[i] || null
+        })),
+        questionSnapshot: run.questions.map(q => ({ ...q })),
+        finishedAt: data.attempt.submitted_at || new Date().toISOString()
+    };
+
+    db.results.push(local);
+    delete db.inProgress[userId];
+    saveDB();
+
+    // Refresh the result from the server
+    try {
+        const rr = await fetch(
+            `${API_BASE}/api/results?studentId=${encodeURIComponent(userId)}`,
+            {
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            }
+        );
+
+        if (rr.ok) {
+            const rd = await rr.json();
+
+            if (rd.status === "ok") {
+                db.results = db.results
+                    .filter(x => String(x.userId) !== String(userId))
+                    .concat((rd.results || []).map(mapApiResult));
+
+                saveDB();
+
+                return db.results.find(
+                    x => String(x.id) === String(local.id)
+                ) || local;
+            }
+        }
+    } catch (error) {
+        console.error("Result refresh failed:", error);
+    }
+
     return local;
 }
 async function submitQuiz(auto = false) {
@@ -483,7 +864,14 @@ async function submitQuiz(auto = false) {
     $('#quizOverlay').classList.add('hidden'); $('#fsPrompt').classList.add('hidden'); leaveFullscreen(); currentPage = 'myresult'; renderNav(); renderPage();
     toast(auto ? 'Time is up. Your answers have been submitted.' : 'Quiz submitted. Your score is ready!');
 }
-async function settleInterrupted() { const p = db.inProgress[currentUser.id]; if (p && !quizRun) { try { await finalizeAttempt(p, currentUser.id); toast('Your unfinished attempt was submitted automatically.'); } catch(e) { console.warn('Could not submit interrupted attempt:', e.message); } } }
+function settleInterrupted() {
+    const p = db.inProgress[currentUser.id];
+
+    if (p) {
+        serverAttemptId = p.serverAttemptId || null;
+        console.log('Incomplete quiz found. Attempt ID:', serverAttemptId);
+    }
+}
 function doLogout() { stopQuestionTimer(); leaveFullscreen(); $('#fsPrompt').classList.add('hidden'); localStorage.removeItem('quantum_logged_in_user'); currentUser = null; rankShown = {}; resView = null; goAuth(); setAuthMode('login') }
 $('#logoutBtn').onclick = async () => { if (await ask('Sign out?', 'You will return to the login screen.', 'Yes, sign out', 'question')) doLogout() };
 $('#quizLogout').onclick = async () => { if (await ask('Log out of the quiz?', 'Your answers so far will be submitted and you cannot retake it.', 'Submit & log out')) { submitQuiz(); doLogout() } };

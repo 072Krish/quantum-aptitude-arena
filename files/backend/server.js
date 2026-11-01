@@ -4,6 +4,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const pool = require("./db");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 
@@ -35,6 +37,38 @@ function verifyAdminToken(req, res, next) {
     }
 
     req.admin = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      status: "error",
+      message: "Invalid or expired token. Please log in again."
+    });
+  }
+}
+
+function verifyStudentToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({
+      status: "error",
+      message: "Student authentication required"
+    });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.role !== "student") {
+      return res.status(403).json({
+        status: "error",
+        message: "Student access only"
+      });
+    }
+
+    req.student = decoded;
     next();
   } catch (error) {
     return res.status(401).json({
@@ -76,8 +110,6 @@ app.get("/api/health", async (req, res) => {
 });
 
 // Student Signup API
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 
 app.post("/api/signup", async (req, res) => {
   try {
@@ -185,16 +217,28 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
-    // Return student details without password hash
-    return res.json({
-      status: "ok",
-      message: "Login successful",
-      student: {
-        id: student.id,
-        full_name: student.full_name,
-        email: student.email,
-      },
-    });
+// Generate secure student token
+const token = jwt.sign(
+  {
+    id: student.id,
+    role: "student",
+    email: student.email
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: "7d" }
+);
+
+// Return student details and token
+return res.json({
+  status: "ok",
+  message: "Login successful",
+  token,
+  student: {
+    id: student.id,
+    full_name: student.full_name,
+    email: student.email,
+  },
+});
   } catch (error) {
     console.error("Login API failed:", error.message);
 
@@ -663,36 +707,367 @@ app.post('/api/quizzes/:id/verify-password', async (req, res) => {
   } catch (error) { console.error('Verify quiz password failed:', error.message); res.status(500).json({ status: 'error', message: 'Unable to verify password' }); }
 });
 
-// Submit an attempt. Correct answers and scores are calculated on the server.
-app.post('/api/attempts', async (req, res) => {
-  const client = await pool.connect();
+// Start or resume a student quiz attempt
+app.post("/api/attempts/start", verifyStudentToken, async (req, res) => {
   try {
-    const studentId = req.body.student_id;
+    const studentId = req.student.id;
     const quizId = req.body.quiz_id;
-    const answers = Array.isArray(req.body.answers) ? req.body.answers : [];
-    if (!studentId || !quizId) return res.status(400).json({ status: 'error', message: 'Student and quiz are required' });
-    await client.query('BEGIN');
-    const existing = await client.query("SELECT id FROM quiz_attempts WHERE student_id=$1 AND quiz_id=$2 AND status='submitted'", [studentId, quizId]);
-    if (existing.rows.length) { await client.query('ROLLBACK'); return res.status(409).json({ status: 'error', message: 'You have already submitted this quiz' }); }
-    const qs = await client.query('SELECT id,question_text,option_a,option_b,option_c,option_d,correct_option,explanation,marks FROM questions WHERE quiz_id=$1', [quizId]);
-    const qMap = new Map(qs.rows.map(q => [String(q.id), q]));
-    const valid = answers.filter(a => qMap.has(String(a.question_id)));
-    let score = 0;
-    const attempt = await client.query("INSERT INTO quiz_attempts (student_id,quiz_id,started_at,submitted_at,score,status) VALUES ($1,$2,$3,NOW(),0,'submitted') RETURNING *", [studentId, quizId, req.body.started_at ? new Date(req.body.started_at) : new Date()]);
-    const attemptId = attempt.rows[0].id;
-    for (const a of valid) {
-      const q = qMap.get(String(a.question_id));
-      const selected = String(a.selected_option || '').toUpperCase().replace(/[^A-D]/g,'').slice(0,1) || null;
-      const correct = !!selected && selected === String(q.correct_option).toUpperCase();
-      const marks = correct ? Number(q.marks || 1) : 0; score += marks;
-      await client.query('INSERT INTO attempt_answers (attempt_id,question_id,selected_option,is_correct,marks_awarded) VALUES ($1,$2,$3,$4,$5)', [attemptId,q.id,selected,correct,marks]);
+
+    if (!quizId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Quiz ID is required"
+      });
     }
-    await client.query('UPDATE quiz_attempts SET score=$1 WHERE id=$2', [score,attemptId]);
-    await client.query('COMMIT');
-    res.status(201).json({ status: 'ok', attempt: { ...attempt.rows[0], score, answer_count: valid.length }, message: 'Attempt submitted successfully' });
-  } catch (error) { await client.query('ROLLBACK'); console.error('Submit attempt failed:', error.message); res.status(500).json({ status: 'error', message: 'Unable to submit quiz attempt' }); }
-  finally { client.release(); }
+
+    const quizResult = await pool.query(
+      `SELECT id, duration_minutes
+       FROM quizzes
+       WHERE id = $1`,
+      [quizId]
+    );
+
+    if (quizResult.rows.length === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Quiz not found"
+      });
+    }
+
+    const quiz = quizResult.rows[0];
+
+    // Check for an already submitted attempt
+    const submitted = await pool.query(
+      `SELECT id
+       FROM quiz_attempts
+       WHERE student_id = $1
+         AND quiz_id = $2
+         AND status = 'submitted'
+       LIMIT 1`,
+      [studentId, quizId]
+    );
+
+    if (submitted.rows.length > 0) {
+      return res.status(409).json({
+        status: "error",
+        message: "You have already submitted this quiz"
+      });
+    }
+
+    // Resume an existing attempt if available
+    const existing = await pool.query(
+      `SELECT id, started_at, expires_at, status
+       FROM quiz_attempts
+       WHERE student_id = $1
+         AND quiz_id = $2
+         AND status = 'in_progress'
+       ORDER BY started_at DESC
+       LIMIT 1`,
+      [studentId, quizId]
+    );
+
+    if (existing.rows.length > 0) {
+      let attempt = existing.rows[0];
+
+      // Set deadline for older attempts that have no deadline
+      if (!attempt.expires_at) {
+        const updated = await pool.query(
+          `UPDATE quiz_attempts
+           SET expires_at = started_at + ($1 * INTERVAL '1 minute')
+           WHERE id = $2
+           RETURNING id, started_at, expires_at, status`,
+          [quiz.duration_minutes, attempt.id]
+        );
+
+        attempt = updated.rows[0];
+      }
+
+      return res.json({
+        status: "ok",
+        resumed: true,
+        attempt
+      });
+    }
+
+    // Create a new attempt with server-side deadline
+    const result = await pool.query(
+      `INSERT INTO quiz_attempts
+       (student_id, quiz_id, started_at, expires_at, status)
+       VALUES (
+         $1,
+         $2,
+         NOW(),
+         NOW() + ($3 * INTERVAL '1 minute'),
+         'in_progress'
+       )
+       RETURNING id, started_at, expires_at, status`,
+      [studentId, quizId, quiz.duration_minutes]
+    );
+
+    return res.status(201).json({
+      status: "ok",
+      resumed: false,
+      attempt: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error("Start attempt failed:", error.message);
+
+    return res.status(500).json({
+      status: "error",
+      message: "Unable to start quiz attempt"
+    });
+  }
 });
+
+// Save or update a student's answer
+app.post("/api/attempts/:attemptId/answer", verifyStudentToken, async (req, res) => {
+  try {
+    const studentId = req.student.id;
+    const attemptId = req.params.attemptId;
+    const { question_id, selected_option } = req.body;
+
+    if (!question_id || !["A", "B", "C", "D"].includes(selected_option)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Valid question ID and selected option are required"
+      });
+    }
+
+    const attemptResult = await pool.query(
+      `SELECT id, quiz_id, expires_at
+       FROM quiz_attempts
+       WHERE id = $1
+         AND student_id = $2
+         AND status = 'in_progress'`,
+      [attemptId, studentId]
+    );
+
+    if (attemptResult.rows.length === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Active attempt not found"
+      });
+    }
+
+    const attempt = attemptResult.rows[0];
+
+    if (!attempt.expires_at || new Date(attempt.expires_at) <= new Date()) {
+      return res.status(410).json({
+        status: "error",
+        message: "Quiz time has expired"
+      });
+    }
+
+    const questionResult = await pool.query(
+      `SELECT id, correct_option
+       FROM questions
+       WHERE id = $1 AND quiz_id = $2`,
+      [question_id, attempt.quiz_id]
+    );
+
+    if (questionResult.rows.length === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "Question not found in this quiz"
+      });
+    }
+
+    const isCorrect =
+      questionResult.rows[0].correct_option === selected_option;
+
+    const marksResult = await pool.query(
+      `SELECT marks FROM questions WHERE id = $1`,
+      [question_id]
+    );
+
+    const marksAwarded = isCorrect
+      ? Number(marksResult.rows[0].marks || 0)
+      : 0;
+
+    await pool.query(
+      `INSERT INTO attempt_answers
+       (attempt_id, question_id, selected_option, is_correct, marks_awarded)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (attempt_id, question_id)
+       DO UPDATE SET
+         selected_option = EXCLUDED.selected_option,
+         is_correct = EXCLUDED.is_correct,
+         marks_awarded = EXCLUDED.marks_awarded`,
+      [attemptId, question_id, selected_option, isCorrect, marksAwarded]
+    );
+
+    return res.json({
+      status: "ok",
+      message: "Answer saved",
+      question_id,
+      selected_option
+    });
+
+  } catch (error) {
+    console.error("Answer save failed:", error.message);
+
+    return res.status(500).json({
+      status: "error",
+      message: "Unable to save answer"
+    });
+  }
+});
+
+// Clear a saved answer
+app.delete("/api/attempts/:attemptId/answer", verifyStudentToken, async (req, res) => {
+  try {
+    const studentId = req.student.id;
+    const attemptId = req.params.attemptId;
+    const questionId = req.body.question_id;
+
+    if (!questionId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Question ID is required"
+      });
+    }
+
+    const result = await pool.query(
+      `DELETE FROM attempt_answers aa
+       USING quiz_attempts a
+       WHERE aa.attempt_id = a.id
+         AND a.id = $1
+         AND a.student_id = $2
+         AND a.status = 'in_progress'
+         AND a.expires_at > NOW()
+         AND aa.question_id = $3
+       RETURNING aa.question_id`,
+      [attemptId, studentId, questionId]
+    );
+
+    return res.json({
+      status: "ok",
+      message: "Answer cleared",
+      deleted: result.rowCount > 0
+    });
+
+  } catch (error) {
+    console.error("Clear answer failed:", error.message);
+
+    return res.status(500).json({
+      status: "error",
+      message: "Unable to clear answer"
+    });
+  }
+});
+
+
+// Securely submit an existing student attempt
+app.post("/api/attempts/:attemptId/submit", verifyStudentToken, async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const studentId = req.student.id;
+    const attemptId = req.params.attemptId;
+
+    await client.query("BEGIN");
+
+    // Verify ownership and lock the attempt
+    const attemptResult = await client.query(
+      `SELECT id, quiz_id, status, expires_at
+       FROM quiz_attempts
+       WHERE id = $1 AND student_id = $2
+       FOR UPDATE`,
+      [attemptId, studentId]
+    );
+
+    if (!attemptResult.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        status: "error",
+        message: "Attempt not found"
+      });
+    }
+
+    const attempt = attemptResult.rows[0];
+
+    if (attempt.status !== "in_progress") {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        status: "error",
+        message: "Attempt is not active or has already been submitted"
+      });
+    }
+
+    // Enforce the server-side deadline
+    if (!attempt.expires_at || new Date(attempt.expires_at) <= new Date()) {
+      await client.query(
+        `UPDATE quiz_attempts
+         SET status = 'submitted', submitted_at = NOW()
+         WHERE id = $1`,
+        [attemptId]
+      );
+      await client.query("COMMIT");
+
+      return res.status(410).json({
+        status: "error",
+        message: "Quiz time has expired"
+      });
+    }
+
+    // Calculate score using saved answers and database correct answers
+    const scoreResult = await client.query(
+      `SELECT
+         COALESCE(SUM(
+           CASE
+             WHEN aa.selected_option = q.correct_option THEN q.marks
+             ELSE 0
+           END
+         ), 0) AS score,
+         COUNT(DISTINCT aa.question_id) AS answer_count,
+         COUNT(q.id) AS total_questions
+       FROM questions q
+       LEFT JOIN attempt_answers aa
+         ON aa.question_id = q.id
+         AND aa.attempt_id = $1
+       WHERE q.quiz_id = $2`,
+      [attemptId, attempt.quiz_id]
+    );
+
+    const score = Number(scoreResult.rows[0].score || 0);
+
+    const submitted = await client.query(
+      `UPDATE quiz_attempts
+       SET score = $1,
+           submitted_at = NOW(),
+           status = 'submitted'
+       WHERE id = $2
+       RETURNING id, quiz_id, score, started_at, submitted_at, status`,
+      [score, attemptId]
+    );
+
+    await client.query("COMMIT");
+
+    return res.json({
+      status: "ok",
+      message: "Attempt submitted successfully",
+      attempt: {
+        ...submitted.rows[0],
+        score,
+        answer_count: Number(scoreResult.rows[0].answer_count),
+        total_questions: Number(scoreResult.rows[0].total_questions)
+      }
+    });
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Secure submit failed:", error.message);
+
+    return res.status(500).json({
+      status: "error",
+      message: "Unable to submit quiz attempt"
+    });
+  } finally {
+    client.release();
+  }
+});
+
 
 // Results are normalized into the shape used by the existing frontend.
 app.get('/api/results', async (req, res) => {
