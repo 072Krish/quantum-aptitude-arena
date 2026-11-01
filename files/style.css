@@ -240,3 +240,52 @@ body:not(.light-theme) input[type="datetime-local"]::-webkit-calendar-picker-ind
     color-scheme: light;
 }
 
+/* Profile initials - Light theme */
+.light-theme .avatar {
+    background: linear-gradient(135deg, #e8eaff, #dce8ff) !important;
+    color: #4542a0 !important;
+    box-shadow: 0 3px 10px rgba(91, 69, 224, 0.10);
+}
+
+/* Quick Actions - Mobile spacing */
+@media (max-width: 760px) {
+    .head-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px !important;
+        width: 100%;
+        margin-top: 16px;
+    }
+
+    .head-actions > * {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .head-actions .btn {
+        width: 100%;
+        min-height: 46px;
+        padding: 12px 10px;
+        justify-content: center;
+        white-space: normal;
+    }
+
+    .card-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px !important;
+    }
+}
+
+.card-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+}
+
+.card-actions .btn i {
+    font-size: 14px;
+    line-height: 1;
+}
+
