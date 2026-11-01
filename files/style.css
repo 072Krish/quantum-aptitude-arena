@@ -290,6 +290,7 @@ body:not(.light-theme) input[type="datetime-local"]::-webkit-calendar-picker-ind
 }
 
 
+
 /* =========================================
    QUICK ACTIONS — MOBILE UI REDESIGN
 ========================================= */
@@ -299,30 +300,32 @@ body:not(.light-theme) input[type="datetime-local"]::-webkit-calendar-picker-ind
     .quick-actions {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 11px;
+        gap: 10px;
         width: 100%;
-        margin-top: 20px;
+        margin-top: 18px;
     }
 
-    /* First action gets full width */
+    /* First action — Full width */
     .quick-actions .btn:first-child {
         grid-column: 1 / -1;
-        min-height: 57px;
+        min-height: 48px;
         flex-direction: row;
         justify-content: center;
+        gap: 8px;
     }
 
-    /* Other two actions become compact tiles */
+    /* Remaining two action buttons */
     .quick-actions .btn:nth-child(n+2) {
         min-width: 0;
-        min-height: 82px;
-        padding: 12px 7px;
+        min-height: 65px;
+        padding: 9px 6px;
         flex-direction: column;
         justify-content: center;
-        gap: 8px;
+        align-items: center;
+        gap: 5px;
         white-space: normal;
         text-align: center;
-        line-height: 1.4;
+        line-height: 1.35;
     }
 
     /* Common button styling */
@@ -347,11 +350,12 @@ body:not(.light-theme) input[type="datetime-local"]::-webkit-calendar-picker-ind
         box-shadow: 0 5px 16px rgba(110, 85, 220, .12);
     }
 
-    /* Better spacing inside the Quick Actions panel */
+    /* Quick Actions panel spacing */
     .analytics-grid .panel:has(.quick-actions) {
         padding: 19px;
     }
 
+    /* Keyboard accessibility */
     .quick-actions .btn:focus-visible {
         outline: 2px solid var(--purple);
         outline-offset: 3px;
@@ -360,6 +364,7 @@ body:not(.light-theme) input[type="datetime-local"]::-webkit-calendar-picker-ind
 
 /* Extra-small phones */
 @media (max-width: 360px) {
+
     .quick-actions {
         gap: 8px;
     }
@@ -371,8 +376,7 @@ body:not(.light-theme) input[type="datetime-local"]::-webkit-calendar-picker-ind
     }
 
     .quick-actions .btn:nth-child(n+2) {
-        min-height: 76px;
+        min-height: 60px;
     }
 }
-
 
