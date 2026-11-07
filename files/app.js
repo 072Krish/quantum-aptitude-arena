@@ -1009,12 +1009,11 @@ $('#quizLogout').onclick = async () => { if (await ask('Log out of the quiz?', '
 function applyTheme(l) {
     document.body.classList.toggle('light-theme', l);
 
-    const icon = document.querySelector('#themeToggle i');
+    const themeButton = document.querySelector('#themeToggle');
 
-    if (icon) {
-        icon.setAttribute('data-lucide', l ? 'moon' : 'sun');
-        lucide.createIcons();
-    }
+    themeButton.innerHTML = `<i data-lucide="${l ? 'moon' : 'sun'}"></i>`;
+
+    lucide.createIcons();
 
     try {
         localStorage.setItem('quantum_theme', l ? 'light' : 'dark');
