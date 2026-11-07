@@ -380,3 +380,85 @@ body:not(.light-theme) input[type="datetime-local"]::-webkit-calendar-picker-ind
     }
 }
 
+/* Fix quiz buttons for screens up to 320px */
+
+@media screen and (max-width: 320px) {
+
+    .quiz-bottom-right {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        width: 100%;
+        gap: 8px;
+    }
+
+    .quiz-bottom-right #prevQuestion,
+    .quiz-bottom-right #submitQuiz {
+        grid-column: auto !important;
+        width: 100%;
+        min-width: 0;
+        padding: 12px 4px;
+        font-size: 11px;
+        white-space: nowrap;
+    }
+
+}
+
+/* ===== PREMIUM THEME TOGGLE ===== */
+
+.theme-toggle {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.theme-toggle i,
+.theme-toggle svg {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2;
+    transition: all 0.3s ease;
+}
+
+/* Hover Effect */
+.theme-toggle:hover {
+    transform: translateY(-3px) rotate(8deg);
+    background: rgba(99, 102, 241, 0.15);
+    box-shadow: 0 5px 18px rgba(99, 102, 241, 0.25);
+}
+
+/* Click Effect */
+.theme-toggle:active {
+    transform: scale(0.88);
+}
+
+/* Dark Mode Icon */
+body:not(.light-theme) .theme-toggle {
+    color: #fbbf24;
+}
+
+/* Light Mode Icon */
+body.light-theme .theme-toggle {
+    color: #6366f1;
+}
+
+/* Smooth Icon Transition */
+.theme-toggle svg {
+    animation: themeIconAppear 0.35s ease;
+}
+
+@keyframes themeIconAppear {
+    from {
+        opacity: 0;
+        transform: rotate(-45deg) scale(0.5);
+    }
+    to {
+        opacity: 1;
+        transform: rotate(0deg) scale(1);
+    }
+}
