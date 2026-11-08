@@ -701,48 +701,43 @@ button[disabled],
     }
 }
 
-
-/* =====================================
-   QUANTUM - PREVIOUS BUTTON DISABLED FIX
-   Desktop + Tablet + Mobile
-===================================== */
-
+#prevQuestion,
 #prevQuestion:disabled,
 #prevQuestion[disabled],
 #prevQuestion[aria-disabled="true"] {
-    opacity: 0.38 !important;
+    opacity: .34 !important;
     background: var(--panel2) !important;
     color: var(--muted) !important;
     border: 1px solid var(--line) !important;
     cursor: not-allowed !important;
     pointer-events: none !important;
     transform: none !important;
-    filter: grayscale(0.8) !important;
+    filter: grayscale(.85) !important;
     box-shadow: none !important;
 }
 
-/* Mobile screens */
-@media screen and (max-width: 760px) {
-    .quiz-bottom-right #prevQuestion:disabled,
-    .quiz-bottom-right #prevQuestion[disabled] {
-        opacity: 0.35 !important;
-        background: var(--panel2) !important;
-        color: var(--muted) !important;
-        border: 1px solid var(--line) !important;
-        filter: grayscale(0.8) !important;
-        transform: none !important;
-        box-shadow: none !important;
-        cursor: not-allowed !important;
-        pointer-events: none !important;
-    }
+/* Remove animations and transitions inside quiz */
+#quizOverlay,
+#quizOverlay * {
+    animation: none !important;
+    transition: none !important;
 }
 
-/* Extra small phones */
-@media screen and (max-width: 360px) {
-    .quiz-bottom-right #prevQuestion:disabled {
-        opacity: 0.30 !important;
-        background: var(--panel2) !important;
-        color: var(--muted) !important;
-    }
+/* Remove hover and click effects */
+#quizOverlay .btn:hover,
+#quizOverlay .btn:active,
+#quizOverlay .icon-btn:hover,
+#quizOverlay .option-card:hover,
+#quizOverlay .option-card:active,
+#quizOverlay .question-dot:hover,
+#quizOverlay .chip:hover {
+    transform: none !important;
+    filter: none !important;
+    box-shadow: none !important;
 }
 
+/* Keep option selection visible */
+#quizOverlay .option-card.selected {
+    border-color: var(--purple) !important;
+    box-shadow: none !important;
+}
