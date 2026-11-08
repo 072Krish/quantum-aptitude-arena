@@ -741,3 +741,41 @@ button[disabled],
     border-color: var(--purple) !important;
     box-shadow: none !important;
 }
+
+/* Previous and Submit buttons side by side */
+.quiz-bottom-right {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    width: 100%;
+}
+
+.quiz-bottom-right #prevQuestion {
+    flex: 0 0 42% !important;
+    width: 42% !important;
+    min-width: 0;
+}
+
+.quiz-bottom-right #submitQuiz,
+.quiz-bottom-right #nextQuestion {
+    flex: 1 !important;
+    width: auto !important;
+    min-width: 0;
+}
+
+@media (max-width: 760px) {
+    .quiz-bottom-right {
+        flex-direction: row !important;
+        gap: 10px !important;
+    }
+
+    .quiz-bottom-right #prevQuestion {
+        flex: 0 0 42% !important;
+    }
+
+    .quiz-bottom-right #submitQuiz,
+    .quiz-bottom-right #nextQuestion {
+        flex: 1 !important;
+    }
+}
