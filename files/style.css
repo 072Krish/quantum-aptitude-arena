@@ -462,3 +462,287 @@ body.light-theme .theme-toggle {
         transform: rotate(0deg) scale(1);
     }
 }
+
+
+/* ==========================================
+   QUANTUM - PREMIUM UI ANIMATIONS
+   ADMIN + STUDENT DASHBOARD
+========================================== */
+
+:root {
+    --motion-fast: 180ms;
+    --motion-base: 260ms;
+    --motion-slow: 420ms;
+    --ease-out: cubic-bezier(.2,.75,.25,1);
+}
+
+/* GLOBAL SMOOTH TRANSITIONS */
+
+.btn,
+.icon-btn,
+.nav-link,
+.chip,
+.option-card,
+.question-dot,
+.profile-chip,
+.stat-card,
+.panel,
+.quiz-card,
+.hero-card,
+.res-card,
+.review-item {
+    transition: all var(--motion-base) var(--ease-out);
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* BUTTON HOVER */
+
+.btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.07);
+}
+
+.btn:active {
+    transform: scale(.97);
+}
+
+.btn-primary:hover {
+    box-shadow: 0 9px 24px rgba(150,140,255,.25);
+}
+
+.icon-btn:hover {
+    transform: translateY(-2px) rotate(4deg);
+    box-shadow: 0 7px 18px #0002;
+}
+
+.icon-btn:active {
+    transform: scale(.92);
+}
+
+/* SIDEBAR NAVIGATION */
+
+.nav-link {
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-link::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 5px;
+    height: 2px;
+    border-radius: 99px;
+    background: var(--purple);
+    transform: scaleX(0);
+    transition: transform 260ms ease;
+}
+
+.nav-link:hover {
+    transform: translateX(4px);
+    background: rgba(150,140,255,.10);
+}
+
+.nav-link:hover::after {
+    transform: scaleX(1);
+}
+
+/* DASHBOARD CARDS */
+
+.stat-card:hover,
+.panel:hover,
+.quiz-card:hover,
+.hero-card:hover,
+.res-card:hover,
+.review-item:hover {
+    transform: translateY(-4px);
+    border-color: var(--purple);
+    box-shadow: 0 16px 38px #0002;
+}
+
+.quiz-card:hover {
+    box-shadow: 0 20px 44px #0003,
+                0 0 25px rgba(166,155,255,.10);
+}
+
+/* QUIZ OPTIONS */
+
+.option-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--purple);
+    box-shadow: 0 9px 22px #0002;
+}
+
+.option-card:active {
+    transform: scale(.99);
+}
+
+.option-card.selected {
+    box-shadow: 0 0 0 2px rgba(150,140,255,.25);
+}
+
+/* CHIPS AND QUESTION NAVIGATION */
+
+.chip:hover {
+    transform: translateY(-2px);
+    border-color: var(--purple);
+    box-shadow: 0 5px 14px #0002;
+}
+
+.question-dot:hover {
+    transform: scale(1.12);
+}
+
+/* PAGE ANIMATIONS */
+
+@keyframes quantumPageIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes quantumSoftIn {
+    from {
+        opacity: 0;
+        transform: translateY(9px) scale(.99);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes quantumModalIn {
+    from {
+        opacity: 0;
+        transform: translateY(18px) scale(.985);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+#pageContent > * {
+    animation: quantumPageIn 420ms var(--ease-out) both;
+}
+
+.auth-card {
+    animation: quantumSoftIn 560ms var(--ease-out) both;
+}
+
+.modal-backdrop:not(.hidden) .modal {
+    animation: quantumModalIn 300ms var(--ease-out) both;
+}
+
+/* PREVIOUS BUTTON - DISABLED STATE */
+
+button:disabled,
+.btn:disabled,
+button[disabled],
+.btn[disabled] {
+    opacity: .38 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    transform: none !important;
+    box-shadow: none !important;
+    filter: grayscale(1);
+}
+
+/* PREVIOUS BUTTON - EXPLICIT CLASS */
+
+#prevBtn:disabled,
+#prevBtn[disabled],
+.prev-btn:disabled {
+    opacity: .35 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    background: #808080 !important;
+    color: #fff !important;
+    border-color: transparent !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* THEME TOGGLE */
+
+.theme-toggle:hover {
+    transform: translateY(-3px) rotate(8deg);
+    box-shadow: 0 5px 18px rgba(99,102,241,.25);
+}
+
+/* MOBILE SUPPORT */
+
+@media (hover: none) {
+    .stat-card:hover,
+    .panel:hover,
+    .quiz-card:hover,
+    .hero-card:hover,
+    .res-card:hover {
+        transform: none;
+    }
+}
+
+/* ACCESSIBILITY */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+    }
+}
+
+
+/* =====================================
+   QUANTUM - PREVIOUS BUTTON DISABLED FIX
+   Desktop + Tablet + Mobile
+===================================== */
+
+#prevQuestion:disabled,
+#prevQuestion[disabled],
+#prevQuestion[aria-disabled="true"] {
+    opacity: 0.38 !important;
+    background: var(--panel2) !important;
+    color: var(--muted) !important;
+    border: 1px solid var(--line) !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    transform: none !important;
+    filter: grayscale(0.8) !important;
+    box-shadow: none !important;
+}
+
+/* Mobile screens */
+@media screen and (max-width: 760px) {
+    .quiz-bottom-right #prevQuestion:disabled,
+    .quiz-bottom-right #prevQuestion[disabled] {
+        opacity: 0.35 !important;
+        background: var(--panel2) !important;
+        color: var(--muted) !important;
+        border: 1px solid var(--line) !important;
+        filter: grayscale(0.8) !important;
+        transform: none !important;
+        box-shadow: none !important;
+        cursor: not-allowed !important;
+        pointer-events: none !important;
+    }
+}
+
+/* Extra small phones */
+@media screen and (max-width: 360px) {
+    .quiz-bottom-right #prevQuestion:disabled {
+        opacity: 0.30 !important;
+        background: var(--panel2) !important;
+        color: var(--muted) !important;
+    }
+}
+
