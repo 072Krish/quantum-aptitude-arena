@@ -779,3 +779,224 @@ button[disabled],
         flex: 1 !important;
     }
 }
+
+/* ===================================
+   1. QUANTUM PAGINATION DESIGN
+=================================== */
+
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 20px 4px 5px;
+    margin-top: 12px;
+    border-top: 1px solid var(--line);
+}
+
+.pagination-info {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.pagination-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 11px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: var(--purple);
+    color: var(--purple);
+}
+
+.pagination-btn.active {
+    background: var(--purple);
+    color: white;
+    border-color: var(--purple);
+    box-shadow: 0 3px 10px rgba(100, 90, 220, 0.2);
+}
+
+.pagination-btn:active:not(:disabled) {
+    transform: scale(0.94);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+    .pagination-container {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .pagination-controls {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+
+/* ===================================
+   2. TABLE ROW HOVER EFFECTS
+=================================== */
+
+.table-wrap tbody tr {
+    transition: background 0.22s ease, transform 0.22s ease;
+}
+
+.table-wrap tbody tr:hover {
+    background: rgba(120, 110, 220, 0.07);
+}
+
+.table-wrap tbody tr:hover td:first-child {
+    padding-left: 18px;
+    transition: padding-left 0.2s ease;
+}
+
+.table-wrap tbody tr td {
+    transition: color 0.2s ease;
+}
+
+.table-wrap tbody tr:hover td {
+    color: var(--text);
+}
+
+.lb-row.top1:hover,
+.lb-row.top2:hover,
+.lb-row.top3:hover {
+    filter: brightness(1.06);
+}
+
+
+/* ===================================
+   3. BUTTON HOVER AND CLICK ANIMATIONS
+=================================== */
+
+.btn {
+    transition: transform 0.22s ease,
+                box-shadow 0.22s ease,
+                background 0.22s ease,
+                border-color 0.22s ease;
+}
+
+.btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.12);
+}
+
+.btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+    box-shadow: none;
+}
+
+.btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.nav-link {
+    transition: background 0.22s ease,
+                color 0.22s ease,
+                transform 0.22s ease;
+}
+
+.nav-link:hover:not(.active) {
+    transform: translateX(4px);
+}
+
+
+/* ===================================
+   4. DASHBOARD CARD HOVER ANIMATIONS
+=================================== */
+
+.stat-card,
+.quiz-card,
+.res-card {
+    transition: transform 0.25s ease,
+                box-shadow 0.25s ease,
+                border-color 0.25s ease;
+}
+
+.stat-card:hover,
+.quiz-card:hover,
+.res-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.10);
+}
+
+.stat-icon {
+    transition: transform 0.25s ease;
+}
+
+.stat-card:hover .stat-icon {
+    transform: scale(1.1) rotate(-5deg);
+}
+
+.rank-badge {
+    transition: transform 0.2s ease;
+}
+
+.lb-row:hover .rank-badge {
+    transform: scale(1.08);
+}
+
+
+/* ===================================
+   5. SMOOTH PAGE APPEARANCE ANIMATION
+=================================== */
+
+#pageContent {
+    animation: quantumPageEnter 0.35s ease both;
+}
+
+@keyframes quantumPageEnter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* ===================================
+   6. ACCESSIBILITY
+=================================== */
+
+@media (prefers-reduced-motion: reduce) {
+
+    #pageContent,
+    .btn,
+    .nav-link,
+    .stat-card,
+    .quiz-card,
+    .res-card,
+    .table-wrap tbody tr {
+        animation: none !important;
+        transition: none !important;
+    }
+
+}
