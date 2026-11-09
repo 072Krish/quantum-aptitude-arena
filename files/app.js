@@ -289,7 +289,52 @@ let lbState = {
 function quizOptions() { const m = new Map(); db.results.forEach(r => m.set(r.quizId, r.quizTitle)); quizzes().forEach(q => m.set(q.id, q.title)); return [...m] }
 function lbRows() { const per = {}, rk = {}; leaderboard().forEach(r => { per[r.quizId] = (per[r.quizId] || 0) + 1; rk[r.id] = per[r.quizId] }); const pc = r => r.score / Math.max(1, r.maxScore), q = lbState.q.toLowerCase(); let rows = leaderboard(lbState.quiz === 'all' ? '' : lbState.quiz).filter(r => { const u = userFor(r.userId); return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) }).map(r => ({ ...r, rank: rk[r.id] })); const S = { rank: (a, b) => pc(b) - pc(a) || a.totalTime - b.totalTime, low: (a, b) => pc(a) - pc(b) || b.totalTime - a.totalTime, time: (a, b) => a.totalTime - b.totalTime, latest: (a, b) => new Date(b.finishedAt) - new Date(a.finishedAt), name: (a, b) => userFor(a.userId).name.localeCompare(userFor(b.userId).name), quiz: (a, b) => String(a.quizTitle).localeCompare(String(b.quizTitle)) || a.rank - b.rank }; return rows.sort(S[lbState.sort] || S.rank) }
 function lbTable(rows) { if (!rows.length) return `<div class="empty-state"><strong>No entries match.</strong> Try another quiz or clear the search.</div>`; const totalEntries = rows.length; const totalPages = Math.ceil(totalEntries / lbState.pageSize); lbState.page = Math.min(Math.max(1, lbState.page), totalPages); const startIndex = (lbState.page - 1) * lbState.pageSize; const endIndex = Math.min(startIndex + lbState.pageSize, totalEntries); const pageRows = rows.slice(startIndex, endIndex); return `<div class="table-wrap"><table><thead><tr><th>RANK</th><th>PARTICIPANT</th><th>QUIZ</th><th>SCORE</th><th>TIME TAKEN</th><th>AVG TIME</th><th>SUBMITTED</th></tr></thead><tbody>${pageRows.map(r => `<tr class="lb-row ${r.rank < 4 ? 'top' + r.rank : ''}"><td><span class="rank-badge ${r.rank === 1 ? 'gold' : ''}">#${r.rank}</span></td><td>${userCell(userFor(r.userId))}</td><td>${esc(r.quizTitle)}</td><td><strong>${r.score}/${r.maxScore}</strong><small class="subtext">${Math.round(r.score / Math.max(1, r.maxScore) * 100)}%</small></td><td>${fmtTime(r.totalTime)}</td><td>${fmtTime(averageTimeForUser(r.userId))}</td><td>${fmtDT(r.finishedAt)}</td></tr>`).join('')}</tbody></table></div>${paginationHTML(totalEntries, lbState.page, lbState.pageSize, 'leaderboard')}`; }
-function paginationHTML(total, page, pageSize, type) { const totalPages = Math.ceil(total / pageSize); const start = total === 0 ? 0 : (page - 1) * pageSize + 1; const end = Math.min(page * pageSize, total); let buttons = ''; for (let i = 1; i <= totalPages; i++) { buttons += `<button class="pagination-btn ${page === i ? 'active' : ''}" data-page="${i}" data-pagination="${type}">${i}</button>`; } return `<div class="pagination-container"><div class="pagination-info">Showing ${start}–${end} of ${total} entries</div><div class="pagination-controls"><button class="pagination-btn pagination-prev" data-page="${page - 1}" data-pagination="${type}" ${page === 1 ? 'disabled' : ''}>Previous</button>${buttons}<button class="pagination-btn pagination-next" data-page="${page + 1}" data-pagination="${type}" ${page === totalPages || totalPages === 0 ? 'disabled' : ''}>Next</button></div></div>`; }
+
+function paginationHTML(total, page, pageSize, type) {
+    const totalPages = Math.ceil(total / pageSize);
+    const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+    const end = Math.min(page * pageSize, total);
+
+    const pages = new Set();
+
+    if (totalPages > 0) {
+        pages.add(1);
+        pages.add(totalPages);
+
+        for (let i = Math.max(1, page - 2); i <= Math.min(totalPages, page + 2); i++) {
+            pages.add(i);
+        }
+    }
+
+    const visiblePages = [...pages].sort((a, b) => a - b);
+
+    let buttons = '';
+    let previousPage = 0;
+
+    visiblePages.forEach(i => {
+        if (previousPage && i - previousPage > 1) {
+            if (i - previousPage === 2) {
+                const middlePage = previousPage + 1;
+                buttons += `<button class="pagination-btn" data-page="${middlePage}" data-pagination="${type}">${middlePage}</button>`;
+            } else {
+                buttons += `<span class="pagination-dots">...</span>`;
+            }
+        }
+
+        buttons += `<button class="pagination-btn ${page === i ? 'active' : ''}" data-page="${i}" data-pagination="${type}">${i}</button>`;
+
+        previousPage = i;
+    });
+
+    return `<div class="pagination-container">
+        <div class="pagination-info">Showing ${start}–${end} of ${total} entries</div>
+        <div class="pagination-controls">
+            <button class="pagination-btn pagination-prev" data-page="${page - 1}" data-pagination="${type}" ${page === 1 ? 'disabled' : ''}>Previous</button>
+            ${buttons}
+            <button class="pagination-btn pagination-next" data-page="${page + 1}" data-pagination="${type}" ${page === totalPages || totalPages === 0 ? 'disabled' : ''}>Next</button>
+        </div>
+    </div>`;
+}
 function bindPagination(container, type) { const parent = document.querySelector(container); if (!parent) return; parent.querySelectorAll('[data-pagination]').forEach(btn => { btn.onclick = () => { const page = Number(btn.dataset.page); if (type === 'leaderboard') { if (page < 1) return; lbState.page = page; lbUpdate(); } if (type === 'users') { if (page < 1) return; usersState.page = page; updateUsersTable(); } }; }); }
 function leaderboardPage() { if (lbState.quiz == null) lbState.quiz = 'all'; const sorts = [['rank', 'Rank (best first)'], ['time', 'Fastest time'], ['latest', 'Latest submission'], ['low', 'Lowest score'], ['name', 'Name A–Z'], ['quiz', 'Quiz name']]; return `${head('Leaderboard', 'Rank is per quiz: higher score first, then faster time.')}<section class="panel"><div class="panel-head"><div><h3>Standings</h3><p id="lbCount"></p></div><span class="badge" id="lbLive">● LIVE</span></div><div class="lb-filters"><label>Quiz<select id="lbQuiz"><option value="all">All quizzes</option>${quizOptions().map(([id, t]) => `<option value="${esc(id)}" ${lbState.quiz === id ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label><label>Sort by<select id="lbSort">${sorts.map(([v, l]) => `<option value="${v}" ${lbState.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label>Search<input id="lbSearch" class="search-input" placeholder="Name or email…" value="${esc(lbState.q)}"/></label></div><div id="lbTable"></div></section>` }
 function usersPage() { usersState.page = 1; usersState.search = ''; let users = db.users.filter(u => u.role === 'student'); return `${head('Registered users', 'Every successful student signup is listed here.', '<button class="btn btn-secondary" id="exportUsers">↓ Export CSV</button>')}<div class="stats-grid">${stat('TOTAL SIGNUPS', users.length, 'Student accounts', '♙')}${stat('ATTEMPTED', users.filter(u => db.results.some(r => r.userId === u.id)).length, 'Started and submitted', '✓')}${stat('NOT ATTEMPTED', users.filter(u => !db.results.some(r => r.userId === u.id)).length, 'Still to take the quiz', '◷')}${stat('COMPLETION RATE', users.length ? `${Math.round(users.filter(u => db.results.some(r => r.userId === u.id)).length / users.length * 100)}%` : '0%', 'Registered users who submitted', '↗')}</div><section class="panel"><div class="panel-head"><div><h3>Participant directory</h3><p>Signup details and quiz activity</p></div><div class="page-tools"><input id="userSearch" class="search-input" placeholder="Search name or email…"/></div></div><div id="usersTable">${usersTable(users)}</div></section>`; }
