@@ -854,6 +854,14 @@ button[disabled],
     }
 }
 
+/* Center pagination info on small screens */
+@media (max-width: 600px) {
+    .pagination-info {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+}
 
 /* ===================================
    2. TABLE ROW HOVER EFFECTS
@@ -998,4 +1006,290 @@ button[disabled],
         transition: none !important;
     }
 
+}
+
+
+/* ==========================================
+   QUANTUM - PREMIUM LEADERBOARD TABLE
+========================================== */
+
+/* Main leaderboard table container */
+#lbTable .table-wrap {
+    border: 1px solid rgba(166, 155, 255, 0.18);
+    border-radius: 18px;
+    overflow: auto;
+    background: var(--panel);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.12);
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+#lbTable .table-wrap:hover {
+    border-color: rgba(166, 155, 255, 0.4);
+    box-shadow:
+        0 16px 42px rgba(0, 0, 0, 0.16),
+        0 0 22px rgba(166, 155, 255, 0.07);
+}
+
+/* Table header */
+#lbTable thead th {
+    padding: 17px 16px;
+    background: linear-gradient(
+        135deg,
+        rgba(166, 155, 255, 0.13),
+        rgba(166, 155, 255, 0.04)
+    );
+    color: var(--purple);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    border-bottom: 1px solid rgba(166, 155, 255, 0.2);
+}
+
+/* Table cells */
+#lbTable tbody td {
+    padding: 16px;
+    border-bottom: 1px solid var(--line);
+    transition:
+        background 0.25s ease,
+        color 0.25s ease,
+        border-color 0.25s ease;
+}
+
+/* Alternating row background */
+#lbTable tbody tr:nth-child(even) {
+    background: rgba(166, 155, 255, 0.025);
+}
+
+/* Premium row hover */
+#lbTable tbody tr {
+    position: relative;
+    transition: background 0.25s ease;
+}
+
+#lbTable tbody tr:hover {
+    background: rgba(166, 155, 255, 0.10);
+}
+
+#lbTable tbody tr:hover td {
+    border-bottom-color: rgba(166, 155, 255, 0.22);
+}
+
+/* First column hover indicator */
+#lbTable tbody tr td:first-child {
+    transition: padding-left 0.25s ease;
+}
+
+#lbTable tbody tr:hover td:first-child {
+    padding-left: 21px;
+}
+
+/* Rank badge animation */
+#lbTable .rank-badge {
+    width: 35px;
+    height: 35px;
+    border-radius: 11px;
+    display: inline-grid;
+    place-items: center;
+    font-weight: 800;
+    transition:
+        transform 0.28s cubic-bezier(.2,.8,.2,1),
+        box-shadow 0.28s ease;
+}
+
+#lbTable tbody tr:hover .rank-badge {
+    transform: scale(1.12) rotate(-5deg);
+    box-shadow: 0 5px 15px rgba(166, 155, 255, 0.2);
+}
+
+/* Gold - Rank 1 */
+#lbTable tr.top1 .rank-badge {
+    background: linear-gradient(135deg, #ffe99a, #f2b900);
+    color: #533900;
+    box-shadow: 0 4px 14px rgba(242, 185, 0, 0.22);
+}
+
+/* Silver - Rank 2 */
+#lbTable tr.top2 .rank-badge {
+    background: linear-gradient(135deg, #f4f5fa, #aeb8cb);
+    color: #30394c;
+    box-shadow: 0 4px 12px rgba(180, 190, 210, 0.18);
+}
+
+/* Bronze - Rank 3 */
+#lbTable tr.top3 .rank-badge {
+    background: linear-gradient(135deg, #ffd1a9, #d77b43);
+    color: #572b10;
+    box-shadow: 0 4px 12px rgba(215, 123, 67, 0.2);
+}
+
+/* Top 3 row highlight */
+#lbTable tr.top1 {
+    background: rgba(245, 190, 40, 0.045);
+}
+
+#lbTable tr.top2 {
+    background: rgba(180, 190, 210, 0.045);
+}
+
+#lbTable tr.top3 {
+    background: rgba(215, 123, 67, 0.045);
+}
+
+#lbTable tr.top1:hover {
+    background: rgba(245, 190, 40, 0.11);
+}
+
+#lbTable tr.top2:hover {
+    background: rgba(180, 190, 210, 0.11);
+}
+
+#lbTable tr.top3:hover {
+    background: rgba(215, 123, 67, 0.11);
+}
+
+/* Student name */
+#lbTable .user-cell {
+    gap: 12px;
+}
+
+#lbTable .user-cell strong {
+    font-size: 12px;
+    font-weight: 800;
+    transition: color 0.2s ease;
+}
+
+#lbTable tbody tr:hover .user-cell strong {
+    color: var(--purple);
+}
+
+/* Student avatar */
+#lbTable .user-cell .avatar {
+    transition:
+        transform 0.28s ease,
+        box-shadow 0.28s ease;
+}
+
+#lbTable tbody tr:hover .user-cell .avatar {
+    transform: scale(1.09);
+    box-shadow: 0 4px 14px rgba(166, 155, 255, 0.22);
+}
+
+/* Score and points emphasis */
+#lbTable td strong {
+    font-weight: 800;
+}
+
+#lbTable tbody tr:hover td strong {
+    color: var(--purple);
+}
+
+/* Result badges */
+#lbTable .badge {
+    transition:
+        transform 0.22s ease,
+        box-shadow 0.22s ease;
+}
+
+#lbTable tbody tr:hover .badge {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(166, 155, 255, 0.12);
+}
+
+/* Smooth entrance for leaderboard rows */
+@keyframes lbRowAppear {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#lbTable tbody tr {
+    animation: lbRowAppear 0.35s ease both;
+}
+
+#lbTable tbody tr:nth-child(2) { animation-delay: 30ms; }
+#lbTable tbody tr:nth-child(3) { animation-delay: 60ms; }
+#lbTable tbody tr:nth-child(4) { animation-delay: 90ms; }
+#lbTable tbody tr:nth-child(5) { animation-delay: 120ms; }
+
+/* Light theme */
+.light-theme #lbTable .table-wrap {
+    background: #fff;
+    border-color: #e5e0fa;
+    box-shadow: 0 12px 32px rgba(55, 40, 120, 0.08);
+}
+
+.light-theme #lbTable thead th {
+    background: linear-gradient(135deg, #eeebff, #f9f8ff);
+    color: #5140bc;
+}
+
+.light-theme #lbTable tbody tr:nth-child(even) {
+    background: #faf9ff;
+}
+
+.light-theme #lbTable tbody tr:hover {
+    background: #efecff;
+}
+
+.light-theme #lbTable tbody tr.top1 {
+    background: #fffaf0;
+}
+
+.light-theme #lbTable tbody tr.top2 {
+    background: #f8f9fc;
+}
+
+.light-theme #lbTable tbody tr.top3 {
+    background: #fff7f1;
+}
+
+.light-theme #lbTable tbody tr.top1:hover {
+    background: #fff1ce;
+}
+
+.light-theme #lbTable tbody tr.top2:hover {
+    background: #edf0f7;
+}
+
+.light-theme #lbTable tbody tr.top3:hover {
+    background: #ffeadb;
+}
+
+.light-theme #lbTable tbody tr:hover .user-cell strong,
+.light-theme #lbTable tbody tr:hover td strong {
+    color: #5140bc;
+}
+
+/* Mobile and touch devices */
+@media (max-width: 760px) {
+    #lbTable .table-wrap {
+        border-radius: 14px;
+    }
+
+    #lbTable tbody td {
+        padding: 14px 12px;
+    }
+
+    #lbTable thead th {
+        padding: 14px 12px;
+    }
+
+    #lbTable tbody tr:hover td:first-child {
+        padding-left: 12px;
+    }
+}
+
+/* Accessibility: reduce motion */
+@media (prefers-reduced-motion: reduce) {
+    #lbTable *,
+    #lbTable *::before,
+    #lbTable *::after {
+        animation: none !important;
+        transition: none !important;
+    }
 }
